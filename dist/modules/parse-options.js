@@ -1,6 +1,6 @@
 /**
  * angular-strap
- * @version v2.1.6 - 2015-01-11
+ * @version v2.2.0 - 2015-02-20
  * @link http://mgcrea.github.io/angular-strap
  * @author Olivier Louvignes (olivier@mg-crea.com)
  * @license MIT License, http://www.opensource.org/licenses/MIT
@@ -53,15 +53,26 @@ angular.module('mgcrea.ngStrap.helpers.parseOptions', [])
         };
 
         // Private functions
-
         function parseValues(values, scope) {
-          return values.map(function(match, index) {
-            var locals = {}, label, value;
-            locals[valueName] = match;
-            label = displayFn(scope, locals);
-            value = valueFn(scope, locals);
-            return {label: label, value: value, index: index};
-          });
+            var new_values = [];
+            if (!Array.isArray || !Array.isArray(values)) {
+                for (var key in values) {
+                    if (values.hasOwnProperty(key)) {
+                        new_values.push({value :key, label :values[key]});
+                    }
+                }
+                return new_values.map(function(match, index) {
+                    return {label: match.label, value: match.value, index: index};
+                });
+            } else {
+                return values.map(function(match, index) {
+                    var locals = {}, label, value;
+                    locals[valueName] = match;
+                    label = displayFn(scope, locals);
+                    value = valueFn(scope, locals);
+                    return {label: label, value: value, index: index};
+                });
+            }
         }
 
         $parseOptions.init();

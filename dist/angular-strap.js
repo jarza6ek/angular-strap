@@ -1,6 +1,6 @@
 /**
  * angular-strap
- * @version v2.2.0 - 2015-02-20
+ * @version v2.2.0 - 2015-02-23
  * @link http://mgcrea.github.io/angular-strap
  * @author Olivier Louvignes (olivier@mg-crea.com)
  * @license MIT License, http://www.opensource.org/licenses/MIT
@@ -392,6 +392,535 @@ angular.module('mgcrea.ngStrap.alert', ['mgcrea.ngStrap.modal'])
           options = null;
           alert = null;
         });
+
+      }
+    };
+
+  }]);
+
+// Source: aside.js
+angular.module('mgcrea.ngStrap.aside', ['mgcrea.ngStrap.modal'])
+
+  .provider('$aside', function() {
+
+    var defaults = this.defaults = {
+      animation: 'am-fade-and-slide-right',
+      prefixClass: 'aside',
+      prefixEvent: 'aside',
+      placement: 'right',
+      template: 'aside/aside.tpl.html',
+      contentTemplate: false,
+      container: false,
+      element: null,
+      backdrop: true,
+      keyboard: true,
+      html: false,
+      show: true
+    };
+
+    this.$get = ["$modal", function($modal) {
+
+      function AsideFactory(config) {
+
+        var $aside = {};
+
+        // Common vars
+        var options = angular.extend({}, defaults, config);
+
+        $aside = $modal(options);
+
+        return $aside;
+
+      }
+
+      return AsideFactory;
+
+    }];
+
+  })
+
+  .directive('bsAside', ["$window", "$sce", "$aside", function($window, $sce, $aside) {
+
+    var requestAnimationFrame = $window.requestAnimationFrame || $window.setTimeout;
+
+    return {
+      restrict: 'EAC',
+      scope: true,
+      link: function postLink(scope, element, attr, transclusion) {
+        // Directive options
+        var options = {scope: scope, element: element, show: false};
+        angular.forEach(['template', 'contentTemplate', 'placement', 'backdrop', 'keyboard', 'html', 'container', 'animation'], function(key) {
+          if(angular.isDefined(attr[key])) options[key] = attr[key];
+        });
+
+        // Support scope as data-attrs
+        angular.forEach(['title', 'content'], function(key) {
+          attr[key] && attr.$observe(key, function(newValue, oldValue) {
+            scope[key] = $sce.trustAsHtml(newValue);
+          });
+        });
+
+        // Support scope as an object
+        attr.bsAside && scope.$watch(attr.bsAside, function(newValue, oldValue) {
+          if(angular.isObject(newValue)) {
+            angular.extend(scope, newValue);
+          } else {
+            scope.content = newValue;
+          }
+        }, true);
+
+        // Initialize aside
+        var aside = $aside(options);
+
+        // Trigger
+        element.on(attr.trigger || 'click', aside.toggle);
+
+        // Garbage collection
+        scope.$on('$destroy', function() {
+          if (aside) aside.destroy();
+          options = null;
+          aside = null;
+        });
+
+      }
+    };
+
+  }]);
+
+// Source: button.js
+angular.module('mgcrea.ngStrap.button', [])
+
+  .provider('$button', function() {
+
+    var defaults = this.defaults = {
+      activeClass:'active',
+      toggleEvent:'click'
+    };
+
+    this.$get = function() {
+      return {defaults: defaults};
+    };
+
+  })
+
+  .directive('bsCheckboxGroup', function() {
+
+    return {
+      restrict: 'A',
+      require: 'ngModel',
+      compile: function postLink(element, attr) {
+        element.attr('data-toggle', 'buttons');
+        element.removeAttr('ng-model');
+        var children = element[0].querySelectorAll('input[type="checkbox"]');
+        angular.forEach(children, function(child) {
+          var childEl = angular.element(child);
+          childEl.attr('bs-checkbox', '');
+          childEl.attr('ng-model', attr.ngModel + '.' + childEl.attr('value'));
+        });
+      }
+
+    };
+
+  })
+
+  .directive('bsCheckbox', ["$button", "$$rAF", function($button, $$rAF) {
+
+    var defaults = $button.defaults;
+    var constantValueRegExp = /^(true|false|\d+)$/;
+
+    return {
+      restrict: 'A',
+      require: 'ngModel',
+      link: function postLink(scope, element, attr, controller) {
+
+        var options = defaults;
+
+        // Support label > input[type="checkbox"]
+        var isInput = element[0].nodeName === 'INPUT';
+        var activeElement = isInput ? element.parent() : element;
+
+        var trueValue = angular.isDefined(attr.trueValue) ? attr.trueValue : true;
+        if(constantValueRegExp.test(attr.trueValue)) {
+          trueValue = scope.$eval(attr.trueValue);
+        }
+        var falseValue = angular.isDefined(attr.falseValue) ? attr.falseValue : false;
+        if(constantValueRegExp.test(attr.falseValue)) {
+          falseValue = scope.$eval(attr.falseValue);
+        }
+
+        // Parse exotic values
+        var hasExoticValues = typeof trueValue !== 'boolean' || typeof falseValue !== 'boolean';
+        if(hasExoticValues) {
+          controller.$parsers.push(function(viewValue) {
+            // console.warn('$parser', element.attr('ng-model'), 'viewValue', viewValue);
+            return viewValue ? trueValue : falseValue;
+          });
+          // modelValue -> $formatters -> viewValue
+          controller.$formatters.push(function(modelValue) {
+             // console.warn('$formatter("%s"): modelValue=%o (%o)', element.attr('ng-model'), modelValue, typeof modelValue);
+             return angular.equals(modelValue, trueValue);
+          });
+          // Fix rendering for exotic values
+          scope.$watch(attr.ngModel, function(newValue, oldValue) {
+            controller.$render();
+          });
+        }
+
+        // model -> view
+        controller.$render = function () {
+          // console.warn('$render', element.attr('ng-model'), 'controller.$modelValue', typeof controller.$modelValue, controller.$modelValue, 'controller.$viewValue', typeof controller.$viewValue, controller.$viewValue);
+          var isActive = angular.equals(controller.$modelValue, trueValue);
+          $$rAF(function() {
+            if(isInput) element[0].checked = isActive;
+            activeElement.toggleClass(options.activeClass, isActive);
+          });
+        };
+
+        // view -> model
+        element.bind(options.toggleEvent, function() {
+          scope.$apply(function () {
+            // console.warn('!click', element.attr('ng-model'), 'controller.$viewValue', typeof controller.$viewValue, controller.$viewValue, 'controller.$modelValue', typeof controller.$modelValue, controller.$modelValue);
+            if(!isInput) {
+              controller.$setViewValue(!activeElement.hasClass('active'));
+            }
+            if(!hasExoticValues) {
+              controller.$render();
+            }
+          });
+        });
+
+      }
+
+    };
+
+  }])
+
+  .directive('bsRadioGroup', function() {
+
+    return {
+      restrict: 'A',
+      require: 'ngModel',
+      compile: function postLink(element, attr) {
+        element.attr('data-toggle', 'buttons');
+        element.removeAttr('ng-model');
+        var children = element[0].querySelectorAll('input[type="radio"]');
+        angular.forEach(children, function(child) {
+          angular.element(child).attr('bs-radio', '');
+          angular.element(child).attr('ng-model', attr.ngModel);
+        });
+      }
+
+    };
+
+  })
+
+  .directive('bsRadio', ["$button", "$$rAF", function($button, $$rAF) {
+
+    var defaults = $button.defaults;
+    var constantValueRegExp = /^(true|false|\d+)$/;
+
+    return {
+      restrict: 'A',
+      require: 'ngModel',
+      link: function postLink(scope, element, attr, controller) {
+
+        var options = defaults;
+
+        // Support `label > input[type="radio"]` markup
+        var isInput = element[0].nodeName === 'INPUT';
+        var activeElement = isInput ? element.parent() : element;
+
+        var value;
+        attr.$observe('value', function(v) {
+          value = constantValueRegExp.test(v) ? scope.$eval(v) : v;
+          controller.$render();
+        });
+
+        // model -> view
+        controller.$render = function () {
+          // console.warn('$render', element.attr('value'), 'controller.$modelValue', typeof controller.$modelValue, controller.$modelValue, 'controller.$viewValue', typeof controller.$viewValue, controller.$viewValue);
+          var isActive = angular.equals(controller.$modelValue, value);
+          $$rAF(function() {
+            if(isInput) element[0].checked = isActive;
+            activeElement.toggleClass(options.activeClass, isActive);
+          });
+        };
+
+        // view -> model
+        element.bind(options.toggleEvent, function() {
+          scope.$apply(function () {
+            // console.warn('!click', element.attr('value'), 'controller.$viewValue', typeof controller.$viewValue, controller.$viewValue, 'controller.$modelValue', typeof controller.$modelValue, controller.$modelValue);
+            controller.$setViewValue(value);
+            controller.$render();
+          });
+        });
+
+      }
+
+    };
+
+  }]);
+
+// Source: collapse.js
+angular.module('mgcrea.ngStrap.collapse', [])
+
+  .provider('$collapse', function() {
+
+    var defaults = this.defaults = {
+      animation: 'am-collapse',
+      disallowToggle: false,
+      activeClass: 'in',
+      startCollapsed: false,
+      allowMultiple: false
+    };
+
+    var controller = this.controller = function($scope, $element, $attrs) {
+      var self = this;
+
+      // Attributes options
+      self.$options = angular.copy(defaults);
+      angular.forEach(['animation', 'disallowToggle', 'activeClass', 'startCollapsed', 'allowMultiple'], function (key) {
+        if(angular.isDefined($attrs[key])) self.$options[key] = $attrs[key];
+      });
+
+      self.$toggles = [];
+      self.$targets = [];
+
+      self.$viewChangeListeners = [];
+
+      self.$registerToggle = function(element) {
+        self.$toggles.push(element);
+      };
+      self.$registerTarget = function(element) {
+        self.$targets.push(element);
+      };
+
+      self.$unregisterToggle = function(element) {
+        var index = self.$toggles.indexOf(element);
+        // remove toggle from $toggles array
+        self.$toggles.splice(index, 1);
+      };
+      self.$unregisterTarget = function(element) {
+        var index = self.$targets.indexOf(element);
+
+        // remove element from $targets array
+        self.$targets.splice(index, 1);
+
+        if (self.$options.allowMultiple) {
+          // remove target index from $active array values
+          deactivateItem(element);
+        }
+
+        // fix active item indexes
+        fixActiveItemIndexes(index);
+
+        self.$viewChangeListeners.forEach(function(fn) {
+          fn();
+        });
+      };
+
+      // use array to store all the currently open panels
+      self.$targets.$active = !self.$options.startCollapsed ? [0] : [];
+      self.$setActive = $scope.$setActive = function(value) {
+        if(angular.isArray(value)) {
+          self.$targets.$active = angular.copy(value);
+        }
+        else if(!self.$options.disallowToggle) {
+          // toogle element active status
+          isActive(value) ? deactivateItem(value) : activateItem(value);
+        } else {
+          activateItem(value);
+        }
+
+        self.$viewChangeListeners.forEach(function(fn) {
+          fn();
+        });
+      };
+
+      self.$activeIndexes = function() {
+        return self.$options.allowMultiple ? self.$targets.$active :
+          self.$targets.$active.length === 1 ? self.$targets.$active[0] : -1;
+      };
+
+      function fixActiveItemIndexes(index) {
+        // item with index was removed, so we
+        // need to adjust other items index values
+        var activeIndexes = self.$targets.$active;
+        for(var i = 0; i < activeIndexes.length; i++) {
+          if (index < activeIndexes[i]) {
+            activeIndexes[i] = activeIndexes[i] - 1;
+          }
+
+          // the last item is active, so we need to
+          // adjust its index
+          if (activeIndexes[i] === self.$targets.length) {
+            activeIndexes[i] = self.$targets.length - 1;
+          }
+        }
+      }
+
+      function isActive(value) {
+        var activeItems = self.$targets.$active;
+        return activeItems.indexOf(value) === -1 ? false : true;
+      }
+
+      function deactivateItem(value) {
+        var index = self.$targets.$active.indexOf(value);
+        if (index !== -1) {
+          self.$targets.$active.splice(index, 1);
+        }
+      }
+
+      function activateItem(value) {
+        if (!self.$options.allowMultiple) {
+          // remove current selected item
+          self.$targets.$active.splice(0, 1);
+        }
+
+        if (self.$targets.$active.indexOf(value) === -1) {
+          self.$targets.$active.push(value);
+        }
+      }
+
+    };
+
+    this.$get = function() {
+      var $collapse = {};
+      $collapse.defaults = defaults;
+      $collapse.controller = controller;
+      return $collapse;
+    };
+
+  })
+
+  .directive('bsCollapse', ["$window", "$animate", "$collapse", function($window, $animate, $collapse) {
+
+    var defaults = $collapse.defaults;
+
+    return {
+      require: ['?ngModel', 'bsCollapse'],
+      controller: ['$scope', '$element', '$attrs', $collapse.controller],
+      link: function postLink(scope, element, attrs, controllers) {
+
+        var ngModelCtrl = controllers[0];
+        var bsCollapseCtrl = controllers[1];
+
+        if(ngModelCtrl) {
+
+          // Update the modelValue following
+          bsCollapseCtrl.$viewChangeListeners.push(function() {
+            ngModelCtrl.$setViewValue(bsCollapseCtrl.$activeIndexes());
+          });
+
+          // modelValue -> $formatters -> viewValue
+          ngModelCtrl.$formatters.push(function(modelValue) {
+            // console.warn('$formatter("%s"): modelValue=%o (%o)', element.attr('ng-model'), modelValue, typeof modelValue);
+            if (angular.isArray(modelValue)) {
+              // model value is an array, so just replace
+              // the active items directly
+              bsCollapseCtrl.$setActive(modelValue);
+            }
+            else {
+              var activeIndexes = bsCollapseCtrl.$activeIndexes();
+
+              if (angular.isArray(activeIndexes)) {
+                // we have an array of selected indexes
+                if (activeIndexes.indexOf(modelValue * 1) === -1) {
+                  // item with modelValue index is not active
+                  bsCollapseCtrl.$setActive(modelValue * 1);
+                }
+              }
+              else if (activeIndexes !== modelValue * 1) {
+                bsCollapseCtrl.$setActive(modelValue * 1);
+              }
+            }
+            return modelValue;
+          });
+
+        }
+
+      }
+    };
+
+  }])
+
+  .directive('bsCollapseToggle', function() {
+
+    return {
+      require: ['^?ngModel', '^bsCollapse'],
+      link: function postLink(scope, element, attrs, controllers) {
+
+        var ngModelCtrl = controllers[0];
+        var bsCollapseCtrl = controllers[1];
+
+        // Add base attr
+        element.attr('data-toggle', 'collapse');
+
+        // Push pane to parent bsCollapse controller
+        bsCollapseCtrl.$registerToggle(element);
+
+        // remove toggle from collapse controller when toggle is destroyed
+        scope.$on('$destroy', function() {
+          bsCollapseCtrl.$unregisterToggle(element);
+        });
+
+        element.on('click', function() {
+          var index = attrs.bsCollapseToggle || bsCollapseCtrl.$toggles.indexOf(element);
+          bsCollapseCtrl.$setActive(index * 1);
+          scope.$apply();
+        });
+
+      }
+    };
+
+  })
+
+  .directive('bsCollapseTarget', ["$animate", function($animate) {
+
+    return {
+      require: ['^?ngModel', '^bsCollapse'],
+      // scope: true,
+      link: function postLink(scope, element, attrs, controllers) {
+
+        var ngModelCtrl = controllers[0];
+        var bsCollapseCtrl = controllers[1];
+
+        // Add base class
+        element.addClass('collapse');
+
+        // Add animation class
+        if(bsCollapseCtrl.$options.animation) {
+          element.addClass(bsCollapseCtrl.$options.animation);
+        }
+
+        // Push pane to parent bsCollapse controller
+        bsCollapseCtrl.$registerTarget(element);
+
+        // remove pane target from collapse controller when target is destroyed
+        scope.$on('$destroy', function() {
+          bsCollapseCtrl.$unregisterTarget(element);
+        });
+
+        function render() {
+          var index = bsCollapseCtrl.$targets.indexOf(element);
+          var active = bsCollapseCtrl.$activeIndexes();
+          var action = 'removeClass';
+          if (angular.isArray(active)) {
+            if (active.indexOf(index) !== -1) {
+              action = 'addClass';
+            }
+          }
+          else if (index === active) {
+            action = 'addClass';
+          }
+
+          $animate[action](element, bsCollapseCtrl.$options.activeClass);
+        }
+
+        bsCollapseCtrl.$viewChangeListeners.push(function() {
+          render();
+        });
+        render();
 
       }
     };
@@ -1035,269 +1564,6 @@ angular.module('mgcrea.ngStrap.datepicker', [
     }];
 
   });
-
-// Source: aside.js
-angular.module('mgcrea.ngStrap.aside', ['mgcrea.ngStrap.modal'])
-
-  .provider('$aside', function() {
-
-    var defaults = this.defaults = {
-      animation: 'am-fade-and-slide-right',
-      prefixClass: 'aside',
-      prefixEvent: 'aside',
-      placement: 'right',
-      template: 'aside/aside.tpl.html',
-      contentTemplate: false,
-      container: false,
-      element: null,
-      backdrop: true,
-      keyboard: true,
-      html: false,
-      show: true
-    };
-
-    this.$get = ["$modal", function($modal) {
-
-      function AsideFactory(config) {
-
-        var $aside = {};
-
-        // Common vars
-        var options = angular.extend({}, defaults, config);
-
-        $aside = $modal(options);
-
-        return $aside;
-
-      }
-
-      return AsideFactory;
-
-    }];
-
-  })
-
-  .directive('bsAside', ["$window", "$sce", "$aside", function($window, $sce, $aside) {
-
-    var requestAnimationFrame = $window.requestAnimationFrame || $window.setTimeout;
-
-    return {
-      restrict: 'EAC',
-      scope: true,
-      link: function postLink(scope, element, attr, transclusion) {
-        // Directive options
-        var options = {scope: scope, element: element, show: false};
-        angular.forEach(['template', 'contentTemplate', 'placement', 'backdrop', 'keyboard', 'html', 'container', 'animation'], function(key) {
-          if(angular.isDefined(attr[key])) options[key] = attr[key];
-        });
-
-        // Support scope as data-attrs
-        angular.forEach(['title', 'content'], function(key) {
-          attr[key] && attr.$observe(key, function(newValue, oldValue) {
-            scope[key] = $sce.trustAsHtml(newValue);
-          });
-        });
-
-        // Support scope as an object
-        attr.bsAside && scope.$watch(attr.bsAside, function(newValue, oldValue) {
-          if(angular.isObject(newValue)) {
-            angular.extend(scope, newValue);
-          } else {
-            scope.content = newValue;
-          }
-        }, true);
-
-        // Initialize aside
-        var aside = $aside(options);
-
-        // Trigger
-        element.on(attr.trigger || 'click', aside.toggle);
-
-        // Garbage collection
-        scope.$on('$destroy', function() {
-          if (aside) aside.destroy();
-          options = null;
-          aside = null;
-        });
-
-      }
-    };
-
-  }]);
-
-// Source: button.js
-angular.module('mgcrea.ngStrap.button', [])
-
-  .provider('$button', function() {
-
-    var defaults = this.defaults = {
-      activeClass:'active',
-      toggleEvent:'click'
-    };
-
-    this.$get = function() {
-      return {defaults: defaults};
-    };
-
-  })
-
-  .directive('bsCheckboxGroup', function() {
-
-    return {
-      restrict: 'A',
-      require: 'ngModel',
-      compile: function postLink(element, attr) {
-        element.attr('data-toggle', 'buttons');
-        element.removeAttr('ng-model');
-        var children = element[0].querySelectorAll('input[type="checkbox"]');
-        angular.forEach(children, function(child) {
-          var childEl = angular.element(child);
-          childEl.attr('bs-checkbox', '');
-          childEl.attr('ng-model', attr.ngModel + '.' + childEl.attr('value'));
-        });
-      }
-
-    };
-
-  })
-
-  .directive('bsCheckbox', ["$button", "$$rAF", function($button, $$rAF) {
-
-    var defaults = $button.defaults;
-    var constantValueRegExp = /^(true|false|\d+)$/;
-
-    return {
-      restrict: 'A',
-      require: 'ngModel',
-      link: function postLink(scope, element, attr, controller) {
-
-        var options = defaults;
-
-        // Support label > input[type="checkbox"]
-        var isInput = element[0].nodeName === 'INPUT';
-        var activeElement = isInput ? element.parent() : element;
-
-        var trueValue = angular.isDefined(attr.trueValue) ? attr.trueValue : true;
-        if(constantValueRegExp.test(attr.trueValue)) {
-          trueValue = scope.$eval(attr.trueValue);
-        }
-        var falseValue = angular.isDefined(attr.falseValue) ? attr.falseValue : false;
-        if(constantValueRegExp.test(attr.falseValue)) {
-          falseValue = scope.$eval(attr.falseValue);
-        }
-
-        // Parse exotic values
-        var hasExoticValues = typeof trueValue !== 'boolean' || typeof falseValue !== 'boolean';
-        if(hasExoticValues) {
-          controller.$parsers.push(function(viewValue) {
-            // console.warn('$parser', element.attr('ng-model'), 'viewValue', viewValue);
-            return viewValue ? trueValue : falseValue;
-          });
-          // modelValue -> $formatters -> viewValue
-          controller.$formatters.push(function(modelValue) {
-             // console.warn('$formatter("%s"): modelValue=%o (%o)', element.attr('ng-model'), modelValue, typeof modelValue);
-             return angular.equals(modelValue, trueValue);
-          });
-          // Fix rendering for exotic values
-          scope.$watch(attr.ngModel, function(newValue, oldValue) {
-            controller.$render();
-          });
-        }
-
-        // model -> view
-        controller.$render = function () {
-          // console.warn('$render', element.attr('ng-model'), 'controller.$modelValue', typeof controller.$modelValue, controller.$modelValue, 'controller.$viewValue', typeof controller.$viewValue, controller.$viewValue);
-          var isActive = angular.equals(controller.$modelValue, trueValue);
-          $$rAF(function() {
-            if(isInput) element[0].checked = isActive;
-            activeElement.toggleClass(options.activeClass, isActive);
-          });
-        };
-
-        // view -> model
-        element.bind(options.toggleEvent, function() {
-          scope.$apply(function () {
-            // console.warn('!click', element.attr('ng-model'), 'controller.$viewValue', typeof controller.$viewValue, controller.$viewValue, 'controller.$modelValue', typeof controller.$modelValue, controller.$modelValue);
-            if(!isInput) {
-              controller.$setViewValue(!activeElement.hasClass('active'));
-            }
-            if(!hasExoticValues) {
-              controller.$render();
-            }
-          });
-        });
-
-      }
-
-    };
-
-  }])
-
-  .directive('bsRadioGroup', function() {
-
-    return {
-      restrict: 'A',
-      require: 'ngModel',
-      compile: function postLink(element, attr) {
-        element.attr('data-toggle', 'buttons');
-        element.removeAttr('ng-model');
-        var children = element[0].querySelectorAll('input[type="radio"]');
-        angular.forEach(children, function(child) {
-          angular.element(child).attr('bs-radio', '');
-          angular.element(child).attr('ng-model', attr.ngModel);
-        });
-      }
-
-    };
-
-  })
-
-  .directive('bsRadio', ["$button", "$$rAF", function($button, $$rAF) {
-
-    var defaults = $button.defaults;
-    var constantValueRegExp = /^(true|false|\d+)$/;
-
-    return {
-      restrict: 'A',
-      require: 'ngModel',
-      link: function postLink(scope, element, attr, controller) {
-
-        var options = defaults;
-
-        // Support `label > input[type="radio"]` markup
-        var isInput = element[0].nodeName === 'INPUT';
-        var activeElement = isInput ? element.parent() : element;
-
-        var value;
-        attr.$observe('value', function(v) {
-          value = constantValueRegExp.test(v) ? scope.$eval(v) : v;
-          controller.$render();
-        });
-
-        // model -> view
-        controller.$render = function () {
-          // console.warn('$render', element.attr('value'), 'controller.$modelValue', typeof controller.$modelValue, controller.$modelValue, 'controller.$viewValue', typeof controller.$viewValue, controller.$viewValue);
-          var isActive = angular.equals(controller.$modelValue, value);
-          $$rAF(function() {
-            if(isInput) element[0].checked = isActive;
-            activeElement.toggleClass(options.activeClass, isActive);
-          });
-        };
-
-        // view -> model
-        element.bind(options.toggleEvent, function() {
-          scope.$apply(function () {
-            // console.warn('!click', element.attr('value'), 'controller.$viewValue', typeof controller.$viewValue, controller.$viewValue, 'controller.$modelValue', typeof controller.$modelValue, controller.$modelValue);
-            controller.$setViewValue(value);
-            controller.$render();
-          });
-        });
-
-      }
-
-    };
-
-  }]);
 
 // Source: dropdown.js
 angular.module('mgcrea.ngStrap.dropdown', ['mgcrea.ngStrap.tooltip'])
@@ -2098,7 +2364,7 @@ angular.module('mgcrea.ngStrap.helpers.parseOptions', [])
             if (!Array.isArray || !Array.isArray(values)) {
                 for (var key in values) {
                     if (values.hasOwnProperty(key)) {
-                        new_values.push({value :key, label :values[key]});
+                        new_values.push({value: parseInt(key), label: values[key]});
                     }
                 }
                 return new_values.map(function(match, index) {
@@ -2179,272 +2445,6 @@ angular.module('mgcrea.ngStrap.helpers.parseOptions', [])
 //   };
 
 // });
-
-// Source: collapse.js
-angular.module('mgcrea.ngStrap.collapse', [])
-
-  .provider('$collapse', function() {
-
-    var defaults = this.defaults = {
-      animation: 'am-collapse',
-      disallowToggle: false,
-      activeClass: 'in',
-      startCollapsed: false,
-      allowMultiple: false
-    };
-
-    var controller = this.controller = function($scope, $element, $attrs) {
-      var self = this;
-
-      // Attributes options
-      self.$options = angular.copy(defaults);
-      angular.forEach(['animation', 'disallowToggle', 'activeClass', 'startCollapsed', 'allowMultiple'], function (key) {
-        if(angular.isDefined($attrs[key])) self.$options[key] = $attrs[key];
-      });
-
-      self.$toggles = [];
-      self.$targets = [];
-
-      self.$viewChangeListeners = [];
-
-      self.$registerToggle = function(element) {
-        self.$toggles.push(element);
-      };
-      self.$registerTarget = function(element) {
-        self.$targets.push(element);
-      };
-
-      self.$unregisterToggle = function(element) {
-        var index = self.$toggles.indexOf(element);
-        // remove toggle from $toggles array
-        self.$toggles.splice(index, 1);
-      };
-      self.$unregisterTarget = function(element) {
-        var index = self.$targets.indexOf(element);
-
-        // remove element from $targets array
-        self.$targets.splice(index, 1);
-
-        if (self.$options.allowMultiple) {
-          // remove target index from $active array values
-          deactivateItem(element);
-        }
-
-        // fix active item indexes
-        fixActiveItemIndexes(index);
-
-        self.$viewChangeListeners.forEach(function(fn) {
-          fn();
-        });
-      };
-
-      // use array to store all the currently open panels
-      self.$targets.$active = !self.$options.startCollapsed ? [0] : [];
-      self.$setActive = $scope.$setActive = function(value) {
-        if(angular.isArray(value)) {
-          self.$targets.$active = angular.copy(value);
-        }
-        else if(!self.$options.disallowToggle) {
-          // toogle element active status
-          isActive(value) ? deactivateItem(value) : activateItem(value);
-        } else {
-          activateItem(value);
-        }
-
-        self.$viewChangeListeners.forEach(function(fn) {
-          fn();
-        });
-      };
-
-      self.$activeIndexes = function() {
-        return self.$options.allowMultiple ? self.$targets.$active :
-          self.$targets.$active.length === 1 ? self.$targets.$active[0] : -1;
-      };
-
-      function fixActiveItemIndexes(index) {
-        // item with index was removed, so we
-        // need to adjust other items index values
-        var activeIndexes = self.$targets.$active;
-        for(var i = 0; i < activeIndexes.length; i++) {
-          if (index < activeIndexes[i]) {
-            activeIndexes[i] = activeIndexes[i] - 1;
-          }
-
-          // the last item is active, so we need to
-          // adjust its index
-          if (activeIndexes[i] === self.$targets.length) {
-            activeIndexes[i] = self.$targets.length - 1;
-          }
-        }
-      }
-
-      function isActive(value) {
-        var activeItems = self.$targets.$active;
-        return activeItems.indexOf(value) === -1 ? false : true;
-      }
-
-      function deactivateItem(value) {
-        var index = self.$targets.$active.indexOf(value);
-        if (index !== -1) {
-          self.$targets.$active.splice(index, 1);
-        }
-      }
-
-      function activateItem(value) {
-        if (!self.$options.allowMultiple) {
-          // remove current selected item
-          self.$targets.$active.splice(0, 1);
-        }
-
-        if (self.$targets.$active.indexOf(value) === -1) {
-          self.$targets.$active.push(value);
-        }
-      }
-
-    };
-
-    this.$get = function() {
-      var $collapse = {};
-      $collapse.defaults = defaults;
-      $collapse.controller = controller;
-      return $collapse;
-    };
-
-  })
-
-  .directive('bsCollapse', ["$window", "$animate", "$collapse", function($window, $animate, $collapse) {
-
-    var defaults = $collapse.defaults;
-
-    return {
-      require: ['?ngModel', 'bsCollapse'],
-      controller: ['$scope', '$element', '$attrs', $collapse.controller],
-      link: function postLink(scope, element, attrs, controllers) {
-
-        var ngModelCtrl = controllers[0];
-        var bsCollapseCtrl = controllers[1];
-
-        if(ngModelCtrl) {
-
-          // Update the modelValue following
-          bsCollapseCtrl.$viewChangeListeners.push(function() {
-            ngModelCtrl.$setViewValue(bsCollapseCtrl.$activeIndexes());
-          });
-
-          // modelValue -> $formatters -> viewValue
-          ngModelCtrl.$formatters.push(function(modelValue) {
-            // console.warn('$formatter("%s"): modelValue=%o (%o)', element.attr('ng-model'), modelValue, typeof modelValue);
-            if (angular.isArray(modelValue)) {
-              // model value is an array, so just replace
-              // the active items directly
-              bsCollapseCtrl.$setActive(modelValue);
-            }
-            else {
-              var activeIndexes = bsCollapseCtrl.$activeIndexes();
-
-              if (angular.isArray(activeIndexes)) {
-                // we have an array of selected indexes
-                if (activeIndexes.indexOf(modelValue * 1) === -1) {
-                  // item with modelValue index is not active
-                  bsCollapseCtrl.$setActive(modelValue * 1);
-                }
-              }
-              else if (activeIndexes !== modelValue * 1) {
-                bsCollapseCtrl.$setActive(modelValue * 1);
-              }
-            }
-            return modelValue;
-          });
-
-        }
-
-      }
-    };
-
-  }])
-
-  .directive('bsCollapseToggle', function() {
-
-    return {
-      require: ['^?ngModel', '^bsCollapse'],
-      link: function postLink(scope, element, attrs, controllers) {
-
-        var ngModelCtrl = controllers[0];
-        var bsCollapseCtrl = controllers[1];
-
-        // Add base attr
-        element.attr('data-toggle', 'collapse');
-
-        // Push pane to parent bsCollapse controller
-        bsCollapseCtrl.$registerToggle(element);
-
-        // remove toggle from collapse controller when toggle is destroyed
-        scope.$on('$destroy', function() {
-          bsCollapseCtrl.$unregisterToggle(element);
-        });
-
-        element.on('click', function() {
-          var index = attrs.bsCollapseToggle || bsCollapseCtrl.$toggles.indexOf(element);
-          bsCollapseCtrl.$setActive(index * 1);
-          scope.$apply();
-        });
-
-      }
-    };
-
-  })
-
-  .directive('bsCollapseTarget', ["$animate", function($animate) {
-
-    return {
-      require: ['^?ngModel', '^bsCollapse'],
-      // scope: true,
-      link: function postLink(scope, element, attrs, controllers) {
-
-        var ngModelCtrl = controllers[0];
-        var bsCollapseCtrl = controllers[1];
-
-        // Add base class
-        element.addClass('collapse');
-
-        // Add animation class
-        if(bsCollapseCtrl.$options.animation) {
-          element.addClass(bsCollapseCtrl.$options.animation);
-        }
-
-        // Push pane to parent bsCollapse controller
-        bsCollapseCtrl.$registerTarget(element);
-
-        // remove pane target from collapse controller when target is destroyed
-        scope.$on('$destroy', function() {
-          bsCollapseCtrl.$unregisterTarget(element);
-        });
-
-        function render() {
-          var index = bsCollapseCtrl.$targets.indexOf(element);
-          var active = bsCollapseCtrl.$activeIndexes();
-          var action = 'removeClass';
-          if (angular.isArray(active)) {
-            if (active.indexOf(index) !== -1) {
-              action = 'addClass';
-            }
-          }
-          else if (index === active) {
-            action = 'addClass';
-          }
-
-          $animate[action](element, bsCollapseCtrl.$options.activeClass);
-        }
-
-        bsCollapseCtrl.$viewChangeListeners.push(function() {
-          render();
-        });
-        render();
-
-      }
-    };
-
-  }]);
 
 // Source: modal.js
 angular.module('mgcrea.ngStrap.modal', ['mgcrea.ngStrap.helpers.dimensions'])

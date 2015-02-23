@@ -51,7 +51,7 @@ angular.module('mgcrea.ngStrap.helpers.parseOptions', [])
             if (!Array.isArray || !Array.isArray(values)) {
                 for (var key in values) {
                     if (values.hasOwnProperty(key)) {
-                        new_values.push({value :key, label :values[key]});
+                        new_values.push({value: parseInt(key), label: values[key]});
                     }
                 }
                 return new_values.map(function(match, index) {

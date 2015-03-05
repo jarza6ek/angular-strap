@@ -1,6 +1,6 @@
 /**
  * angular-strap
- * @version v2.2.0 - 2015-02-23
+ * @version v2.2.0 - 2015-03-05
  * @link http://mgcrea.github.io/angular-strap
  * @author Olivier Louvignes (olivier@mg-crea.com)
  * @license MIT License, http://www.opensource.org/licenses/MIT
@@ -8,6 +8,20 @@
 'use strict';
 
 angular.module('mgcrea.ngStrap.select', ['mgcrea.ngStrap.tooltip', 'mgcrea.ngStrap.helpers.parseOptions'])
+
+  .filter('startsWithLetter', function () {
+    return function (items, key, letter) {
+      var filtered = [];
+      var letterMatch = new RegExp(letter, 'i');
+      for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        if (letterMatch.test(item[key].substring(0, 1))) {
+          filtered.push(item);
+        }
+      }
+      return filtered;
+    };
+  })
 
   .provider('$select', function() {
 
@@ -187,19 +201,25 @@ angular.module('mgcrea.ngStrap.select', ['mgcrea.ngStrap.tooltip', 'mgcrea.ngStr
         };
 
         $select.$onKeyDown = function(evt) {
-          if (!/(9|13|38|40)/.test(evt.keyCode)) return;
-          evt.preventDefault();
-          evt.stopPropagation();
+          if (!/(9|13|38|40)/.test(evt.keyCode)) {
+            var filtered = $filter('startsWithLetter')(scope.$matches, 'label', String.fromCharCode(evt.keyCode));
+            if (filtered.length > 0) {
+                scope.$activeIndex = filtered[0].index;
+            }
+          } else {
+            evt.preventDefault();
+            evt.stopPropagation();
 
-          // Select with enter
-          if(!options.multiple && (evt.keyCode === 13 || evt.keyCode === 9)) {
-            return $select.select(scope.$activeIndex);
+            // Select with enter
+            if(!options.multiple && (evt.keyCode === 13 || evt.keyCode === 9)) {
+              return $select.select(scope.$activeIndex);
+            }
+
+            // Navigate with keyboard
+            if(evt.keyCode === 38 && scope.$activeIndex > 0) scope.$activeIndex--;
+            else if(evt.keyCode === 40 && scope.$activeIndex < scope.$matches.length - 1) scope.$activeIndex++;
+            else if(angular.isUndefined(scope.$activeIndex)) scope.$activeIndex = 0;
           }
-
-          // Navigate with keyboard
-          if(evt.keyCode === 38 && scope.$activeIndex > 0) scope.$activeIndex--;
-          else if(evt.keyCode === 40 && scope.$activeIndex < scope.$matches.length - 1) scope.$activeIndex++;
-          else if(angular.isUndefined(scope.$activeIndex)) scope.$activeIndex = 0;
           scope.$digest();
         };
 

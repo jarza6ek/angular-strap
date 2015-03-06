@@ -213,6 +213,10 @@ angular.module('mgcrea.ngStrap.select', ['mgcrea.ngStrap.tooltip', 'mgcrea.ngStr
             else if(evt.keyCode === 40 && scope.$activeIndex < scope.$matches.length - 1) scope.$activeIndex++;
             else if(angular.isUndefined(scope.$activeIndex)) scope.$activeIndex = 0;
           }
+
+          // scroll do element
+          var liActive = $select.$element.find('li.active');
+          $select.$element[0].scrollTop = scope.$activeIndex * liActive.height();
           scope.$digest();
         };
 

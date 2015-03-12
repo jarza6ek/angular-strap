@@ -1,6 +1,6 @@
 /**
  * angular-strap
- * @version v2.2.0 - 2015-03-05
+ * @version v2.2.0 - 2015-03-12
  * @link http://mgcrea.github.io/angular-strap
  * @author Olivier Louvignes (olivier@mg-crea.com)
  * @license MIT License, http://www.opensource.org/licenses/MIT
@@ -48,7 +48,7 @@ angular.module('mgcrea.ngStrap.select', ['mgcrea.ngStrap.tooltip', 'mgcrea.ngStr
       iconCheckmark: 'glyphicon glyphicon-ok'
     };
 
-    this.$get = ["$window", "$document", "$rootScope", "$tooltip", "$timeout", function($window, $document, $rootScope, $tooltip, $timeout) {
+    this.$get = ["$window", "$document", "$rootScope", "$tooltip", "$timeout", "$filter", function($window, $document, $rootScope, $tooltip, $timeout, $filter) {
 
       var bodyEl = angular.element($window.document.body);
       var isNative = /(ip(a|o)d|iphone|android)/ig.test($window.navigator.userAgent);
@@ -220,6 +220,10 @@ angular.module('mgcrea.ngStrap.select', ['mgcrea.ngStrap.tooltip', 'mgcrea.ngStr
             else if(evt.keyCode === 40 && scope.$activeIndex < scope.$matches.length - 1) scope.$activeIndex++;
             else if(angular.isUndefined(scope.$activeIndex)) scope.$activeIndex = 0;
           }
+
+          // scroll do element
+          var liActive = $select.$element.find('li.active');
+          $select.$element[0].scrollTop = scope.$activeIndex * liActive.height();
           scope.$digest();
         };
 

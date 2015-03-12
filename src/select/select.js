@@ -41,7 +41,7 @@ angular.module('mgcrea.ngStrap.select', ['mgcrea.ngStrap.tooltip', 'mgcrea.ngStr
       iconCheckmark: 'glyphicon glyphicon-ok'
     };
 
-    this.$get = function($window, $document, $rootScope, $tooltip, $timeout) {
+    this.$get = function($window, $document, $rootScope, $tooltip, $timeout, $filter) {
 
       var bodyEl = angular.element($window.document.body);
       var isNative = /(ip(a|o)d|iphone|android)/ig.test($window.navigator.userAgent);

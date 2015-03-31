@@ -194,7 +194,8 @@ angular.module('mgcrea.ngStrap.select', ['mgcrea.ngStrap.tooltip', 'mgcrea.ngStr
         };
 
         $select.$onKeyDown = function(evt) {
-          if (!/(9|13|38|40)/.test(evt.keyCode)) {
+          var specialChars = [9, 13, 38, 40];
+          if (specialChars.indexOf(evt.keyCode) < 0) {
             var filtered = $filter('startsWithLetter')(scope.$matches, 'label', String.fromCharCode(evt.keyCode));
             if (filtered.length > 0) {
                 scope.$activeIndex = filtered[0].index;

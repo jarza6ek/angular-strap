@@ -1,6 +1,6 @@
 /**
  * angular-strap
- * @version v2.2.0 - 2015-03-12
+ * @version v2.2.0 - 2015-03-31
  * @link http://mgcrea.github.io/angular-strap
  * @author Olivier Louvignes (olivier@mg-crea.com)
  * @license MIT License, http://www.opensource.org/licenses/MIT
@@ -201,7 +201,8 @@ angular.module('mgcrea.ngStrap.select', ['mgcrea.ngStrap.tooltip', 'mgcrea.ngStr
         };
 
         $select.$onKeyDown = function(evt) {
-          if (!/(9|13|38|40)/.test(evt.keyCode)) {
+          var specialChars = [9, 13, 38, 40];
+          if (specialChars.indexOf(evt.keyCode) < 0) {
             var filtered = $filter('startsWithLetter')(scope.$matches, 'label', String.fromCharCode(evt.keyCode));
             if (filtered.length > 0) {
                 scope.$activeIndex = filtered[0].index;

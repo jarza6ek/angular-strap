@@ -1,6 +1,6 @@
 /**
  * angular-strap
- * @version v2.2.0 - 2015-03-31
+ * @version v2.2.0 - 2015-06-09
  * @link http://mgcrea.github.io/angular-strap
  * @author Olivier Louvignes (olivier@mg-crea.com)
  * @license MIT License, http://www.opensource.org/licenses/MIT
@@ -927,6 +927,744 @@ angular.module('mgcrea.ngStrap.collapse', [])
 
   }]);
 
+// Source: date-formatter.js
+angular.module('mgcrea.ngStrap.helpers.dateFormatter', [])
+
+  .service('$dateFormatter', ["$locale", "dateFilter", function($locale, dateFilter) {
+
+    // The unused `lang` arguments are on purpose. The default implementation does not
+    // use them and it always uses the locale loaded into the `$locale` service.
+    // Custom implementations might use it, thus allowing different directives to
+    // have different languages.
+
+    this.getDefaultLocale = function() {
+      return $locale.id;
+    };
+
+    // Format is either a data format name, e.g. "shortTime" or "fullDate", or a date format
+    // Return either the corresponding date format or the given date format.
+    this.getDatetimeFormat = function(format, lang) {
+      return $locale.DATETIME_FORMATS[format] || format;
+    };
+
+    this.weekdaysShort = function(lang) {
+      return $locale.DATETIME_FORMATS.SHORTDAY;
+    };
+
+    function splitTimeFormat(format) {
+      return /(h+)([:\.])?(m+)[ ]?(a?)/i.exec(format).slice(1);
+    }
+
+    // h:mm a => h
+    this.hoursFormat = function(timeFormat) {
+      return splitTimeFormat(timeFormat)[0];
+    };
+
+    // h:mm a => mm
+    this.minutesFormat = function(timeFormat) {
+      return splitTimeFormat(timeFormat)[2];
+    };
+
+    // h:mm a => :
+    this.timeSeparator = function(timeFormat) {
+      return splitTimeFormat(timeFormat)[1];
+    };
+
+    // h:mm a => true, H.mm => false
+    this.showAM = function(timeFormat) {
+      return !!splitTimeFormat(timeFormat)[3];
+    };
+
+    this.formatDate = function(date, format, lang, timezone){
+      return dateFilter(date, format, timezone);
+    };
+
+  }]);
+
+// Source: date-parser.js
+angular.module('mgcrea.ngStrap.helpers.dateParser', [])
+
+.provider('$dateParser', ["$localeProvider", function($localeProvider) {
+
+  // define a custom ParseDate object to use instead of native Date
+  // to avoid date values wrapping when setting date component values
+  function ParseDate() {
+    this.year = 1970;
+    this.month = 0;
+    this.day = 1;
+    this.hours = 0;
+    this.minutes = 0;
+    this.seconds = 0;
+    this.milliseconds = 0;
+  }
+
+  ParseDate.prototype.setMilliseconds = function(value) { this.milliseconds = value; };
+  ParseDate.prototype.setSeconds = function(value) { this.seconds = value; };
+  ParseDate.prototype.setMinutes = function(value) { this.minutes = value; };
+  ParseDate.prototype.setHours = function(value) { this.hours = value; };
+  ParseDate.prototype.getHours = function() { return this.hours; };
+  ParseDate.prototype.setDate = function(value) { this.day = value; };
+  ParseDate.prototype.setMonth = function(value) { this.month = value; };
+  ParseDate.prototype.setFullYear = function(value) { this.year = value; };
+  ParseDate.prototype.fromDate = function(value) {
+    this.year = value.getFullYear();
+    this.month = value.getMonth();
+    this.day = value.getDate();
+    this.hours = value.getHours();
+    this.minutes = value.getMinutes();
+    this.seconds = value.getSeconds();
+    this.milliseconds = value.getMilliseconds();
+    return this;
+  };
+
+  ParseDate.prototype.toDate = function() {
+    return new Date(this.year, this.month, this.day, this.hours, this.minutes, this.seconds, this.milliseconds);
+  };
+
+  var proto = ParseDate.prototype;
+
+  function noop() {
+  }
+
+  function isNumeric(n) {
+    return !isNaN(parseFloat(n)) && isFinite(n);
+  }
+
+  function indexOfCaseInsensitive(array, value) {
+    var len = array.length, str=value.toString().toLowerCase();
+    for (var i=0; i<len; i++) {
+      if (array[i].toLowerCase() === str) { return i; }
+    }
+    return -1; // Return -1 per the "Array.indexOf()" method.
+  }
+
+  var defaults = this.defaults = {
+    format: 'shortDate',
+    strict: false
+  };
+
+  this.$get = ["$locale", "dateFilter", function($locale, dateFilter) {
+
+    var DateParserFactory = function(config) {
+
+      var options = angular.extend({}, defaults, config);
+
+      var $dateParser = {};
+
+      var regExpMap = {
+        'sss'   : '[0-9]{3}',
+        'ss'    : '[0-5][0-9]',
+        's'     : options.strict ? '[1-5]?[0-9]' : '[0-9]|[0-5][0-9]',
+        'mm'    : '[0-5][0-9]',
+        'm'     : options.strict ? '[1-5]?[0-9]' : '[0-9]|[0-5][0-9]',
+        'HH'    : '[01][0-9]|2[0-3]',
+        'H'     : options.strict ? '1?[0-9]|2[0-3]' : '[01]?[0-9]|2[0-3]',
+        'hh'    : '[0][1-9]|[1][012]',
+        'h'     : options.strict ? '[1-9]|1[012]' : '0?[1-9]|1[012]',
+        'a'     : 'AM|PM',
+        'EEEE'  : $locale.DATETIME_FORMATS.DAY.join('|'),
+        'EEE'   : $locale.DATETIME_FORMATS.SHORTDAY.join('|'),
+        'dd'    : '0[1-9]|[12][0-9]|3[01]',
+        'd'     : options.strict ? '[1-9]|[1-2][0-9]|3[01]' : '0?[1-9]|[1-2][0-9]|3[01]',
+        'MMMM'  : $locale.DATETIME_FORMATS.MONTH.join('|'),
+        'MMM'   : $locale.DATETIME_FORMATS.SHORTMONTH.join('|'),
+        'MM'    : '0[1-9]|1[012]',
+        'M'     : options.strict ? '[1-9]|1[012]' : '0?[1-9]|1[012]',
+        'yyyy'  : '[1]{1}[0-9]{3}|[2]{1}[0-9]{3}',
+        'yy'    : '[0-9]{2}',
+        'y'     : options.strict ? '-?(0|[1-9][0-9]{0,3})' : '-?0*[0-9]{1,4}',
+      };
+
+      var setFnMap = {
+        'sss'   : proto.setMilliseconds,
+        'ss'    : proto.setSeconds,
+        's'     : proto.setSeconds,
+        'mm'    : proto.setMinutes,
+        'm'     : proto.setMinutes,
+        'HH'    : proto.setHours,
+        'H'     : proto.setHours,
+        'hh'    : proto.setHours,
+        'h'     : proto.setHours,
+        'EEEE'  : noop,
+        'EEE'   : noop,
+        'dd'    : proto.setDate,
+        'd'     : proto.setDate,
+        'a'     : function(value) { var hours = this.getHours() % 12; return this.setHours(value.match(/pm/i) ? hours + 12 : hours); },
+        'MMMM'  : function(value) { return this.setMonth(indexOfCaseInsensitive($locale.DATETIME_FORMATS.MONTH, value)); },
+        'MMM'   : function(value) { return this.setMonth(indexOfCaseInsensitive($locale.DATETIME_FORMATS.SHORTMONTH, value)); },
+        'MM'    : function(value) { return this.setMonth(1 * value - 1); },
+        'M'     : function(value) { return this.setMonth(1 * value - 1); },
+        'yyyy'  : proto.setFullYear,
+        'yy'    : function(value) { return this.setFullYear(2000 + 1 * value); },
+        'y'     : proto.setFullYear
+      };
+
+      var regex, setMap;
+
+      $dateParser.init = function() {
+        $dateParser.$format = $locale.DATETIME_FORMATS[options.format] || options.format;
+        regex = regExpForFormat($dateParser.$format);
+        setMap = setMapForFormat($dateParser.$format);
+      };
+
+      $dateParser.isValid = function(date) {
+        if(angular.isDate(date)) return !isNaN(date.getTime());
+        return regex.test(date);
+      };
+
+      $dateParser.parse = function(value, baseDate, format, timezone) {
+        // check for date format special names
+        if(format) format = $locale.DATETIME_FORMATS[format] || format;
+        if(angular.isDate(value)) value = dateFilter(value, format || $dateParser.$format, timezone);
+        var formatRegex = format ? regExpForFormat(format) : regex;
+        var formatSetMap = format ? setMapForFormat(format) : setMap;
+        var matches = formatRegex.exec(value);
+        if(!matches) return false;
+        // use custom ParseDate object to set parsed values
+        var date = baseDate && !isNaN(baseDate.getTime()) ? new ParseDate().fromDate(baseDate) : new ParseDate().fromDate(new Date(1970, 0, 1, 0));
+        for(var i = 0; i < matches.length - 1; i++) {
+          formatSetMap[i] && formatSetMap[i].call(date, matches[i+1]);
+        }
+        // convert back to native Date object
+        var newDate = date.toDate();
+
+        // check new native Date object for day values overflow
+        if (parseInt(date.day, 10) !== newDate.getDate()) {
+          return false;
+        }
+
+        return newDate;
+      };
+
+      $dateParser.getDateForAttribute = function(key, value) {
+        var date;
+
+        if(value === 'today') {
+          var today = new Date();
+          date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + (key === 'maxDate' ? 1 : 0), 0, 0, 0, (key === 'minDate' ? 0 : -1));
+        } else if(angular.isString(value) && value.match(/^".+"$/)) { // Support {{ dateObj }}
+          date = new Date(value.substr(1, value.length - 2));
+        } else if(isNumeric(value)) {
+          date = new Date(parseInt(value, 10));
+        } else if (angular.isString(value) && 0 === value.length) { // Reset date
+          date = key === 'minDate' ? -Infinity : +Infinity;
+        } else {
+          date = new Date(value);
+        }
+
+        return date;
+      };
+
+      $dateParser.getTimeForAttribute = function(key, value) {
+        var time;
+
+        if(value === 'now') {
+          time = new Date().setFullYear(1970, 0, 1);
+        } else if(angular.isString(value) && value.match(/^".+"$/)) {
+          time = new Date(value.substr(1, value.length - 2)).setFullYear(1970, 0, 1);
+        } else if(isNumeric(value)) {
+          time = new Date(parseInt(value, 10)).setFullYear(1970, 0, 1);
+        } else if (angular.isString(value) && 0 === value.length) { // Reset time
+          time = key === 'minTime' ? -Infinity : +Infinity;
+        } else {
+          time = $dateParser.parse(value, new Date(1970, 0, 1, 0));
+        }
+
+        return time;
+      };
+
+      /* Handle switch to/from daylight saving.
+      * Hours may be non-zero on daylight saving cut-over:
+      * > 12 when midnight changeover, but then cannot generate
+      * midnight datetime, so jump to 1AM, otherwise reset.
+      * @param  date  (Date) the date to check
+      * @return  (Date) the corrected date
+      *
+      * __ copied from jquery ui datepicker __
+      */
+      $dateParser.daylightSavingAdjust = function(date) {
+        if (!date) {
+          return null;
+        }
+        date.setHours(date.getHours() > 12 ? date.getHours() + 2 : 0);
+        return date;
+      };
+
+      /* Correct the date for timezone offset.
+      * @param  date  (Date) the date to adjust
+      * @param  timezone  (string) the timezone to adjust for
+      * @param  undo  (boolean) to add or subtract timezone offset
+      * @return  (Date) the corrected date
+      */
+      $dateParser.timezoneOffsetAdjust = function(date, timezone, undo) {
+        if (!date) {
+          return null;
+        }
+        // Right now, only 'UTC' is supported.
+        if (timezone && timezone === 'UTC') {
+          date = new Date(date.getTime());
+          date.setMinutes(date.getMinutes() + (undo?-1:1)*date.getTimezoneOffset());
+        }
+        return date;
+      };
+
+      // Private functions
+
+      function setMapForFormat(format) {
+        var keys = Object.keys(setFnMap), i;
+        var map = [], sortedMap = [];
+        // Map to setFn
+        var clonedFormat = format;
+        for(i = 0; i < keys.length; i++) {
+          if(format.split(keys[i]).length > 1) {
+            var index = clonedFormat.search(keys[i]);
+            format = format.split(keys[i]).join('');
+            if(setFnMap[keys[i]]) {
+              map[index] = setFnMap[keys[i]];
+            }
+          }
+        }
+        // Sort result map
+        angular.forEach(map, function(v) {
+          // conditional required since angular.forEach broke around v1.2.21
+          // related pr: https://github.com/angular/angular.js/pull/8525
+          if(v) sortedMap.push(v);
+        });
+        return sortedMap;
+      }
+
+      function escapeReservedSymbols(text) {
+        return text.replace(/\//g, '[\\/]').replace('/-/g', '[-]').replace(/\./g, '[.]').replace(/\\s/g, '[\\s]');
+      }
+
+      function regExpForFormat(format) {
+        var keys = Object.keys(regExpMap), i;
+
+        var re = format;
+        // Abstract replaces to avoid collisions
+        for(i = 0; i < keys.length; i++) {
+          re = re.split(keys[i]).join('${' + i + '}');
+        }
+        // Replace abstracted values
+        for(i = 0; i < keys.length; i++) {
+          re = re.split('${' + i + '}').join('(' + regExpMap[keys[i]] + ')');
+        }
+        format = escapeReservedSymbols(format);
+
+        return new RegExp('^' + re + '$', ['i']);
+      }
+
+      $dateParser.init();
+      return $dateParser;
+
+    };
+
+    return DateParserFactory;
+
+  }];
+
+}]);
+
+// Source: debounce.js
+angular.module('mgcrea.ngStrap.helpers.debounce', [])
+
+// @source jashkenas/underscore
+// @url https://github.com/jashkenas/underscore/blob/1.5.2/underscore.js#L693
+.factory('debounce', ["$timeout", function($timeout) {
+  return function(func, wait, immediate) {
+    var timeout = null;
+    return function() {
+      var context = this,
+        args = arguments,
+        callNow = immediate && !timeout;
+      if(timeout) {
+        $timeout.cancel(timeout);
+      }
+      timeout = $timeout(function later() {
+        timeout = null;
+        if(!immediate) {
+          func.apply(context, args);
+        }
+      }, wait, false);
+      if(callNow) {
+        func.apply(context, args);
+      }
+      return timeout;
+    };
+  };
+}])
+
+
+// @source jashkenas/underscore
+// @url https://github.com/jashkenas/underscore/blob/1.5.2/underscore.js#L661
+.factory('throttle', ["$timeout", function($timeout) {
+  return function(func, wait, options) {
+    var timeout = null;
+    options || (options = {});
+    return function() {
+      var context = this,
+        args = arguments;
+      if(!timeout) {
+        if(options.leading !== false) {
+          func.apply(context, args);
+        }
+        timeout = $timeout(function later() {
+          timeout = null;
+          if(options.trailing !== false) {
+            func.apply(context, args);
+          }
+        }, wait, false);
+      }
+    };
+  };
+}]);
+
+// Source: dimensions.js
+angular.module('mgcrea.ngStrap.helpers.dimensions', [])
+
+  .factory('dimensions', ["$document", "$window", function($document, $window) {
+
+    var jqLite = angular.element;
+    var fn = {};
+
+    /**
+     * Test the element nodeName
+     * @param element
+     * @param name
+     */
+    var nodeName = fn.nodeName = function(element, name) {
+      return element.nodeName && element.nodeName.toLowerCase() === name.toLowerCase();
+    };
+
+    /**
+     * Returns the element computed style
+     * @param element
+     * @param prop
+     * @param extra
+     */
+    fn.css = function(element, prop, extra) {
+      var value;
+      if (element.currentStyle) { //IE
+        value = element.currentStyle[prop];
+      } else if (window.getComputedStyle) {
+        value = window.getComputedStyle(element)[prop];
+      } else {
+        value = element.style[prop];
+      }
+      return extra === true ? parseFloat(value) || 0 : value;
+    };
+
+    /**
+     * Provides read-only equivalent of jQuery's offset function:
+     * @required-by bootstrap-tooltip, bootstrap-affix
+     * @url http://api.jquery.com/offset/
+     * @param element
+     */
+    fn.offset = function(element) {
+      var boxRect = element.getBoundingClientRect();
+      var docElement = element.ownerDocument;
+      return {
+        width: boxRect.width || element.offsetWidth,
+        height: boxRect.height || element.offsetHeight,
+        top: boxRect.top + (window.pageYOffset || docElement.documentElement.scrollTop) - (docElement.documentElement.clientTop || 0),
+        left: boxRect.left + (window.pageXOffset || docElement.documentElement.scrollLeft) - (docElement.documentElement.clientLeft || 0)
+      };
+    };
+  
+    /**
+     * Provides set equivalent of jQuery's offset function:
+     * @required-by bootstrap-tooltip
+     * @url http://api.jquery.com/offset/
+     * @param element
+     * @param options
+     * @param i
+     */
+    fn.setOffset = function (element, options, i) {
+      var curPosition,
+          curLeft,
+          curCSSTop,
+          curTop,
+          curOffset,
+          curCSSLeft,
+          calculatePosition,
+          position = fn.css(element, 'position'),
+          curElem = angular.element(element),
+          props = {};
+      
+      // Set position first, in-case top/left are set even on static elem
+      if (position === 'static') {
+        element.style.position = 'relative';
+      }
+      
+      curOffset = fn.offset(element);
+      curCSSTop = fn.css(element, 'top');
+      curCSSLeft = fn.css(element, 'left');
+      calculatePosition = (position === 'absolute' || position === 'fixed') && 
+                          (curCSSTop + curCSSLeft).indexOf('auto') > -1;
+      
+      // Need to be able to calculate position if either
+      // top or left is auto and position is either absolute or fixed
+      if (calculatePosition) {
+        curPosition = fn.position(element);
+        curTop = curPosition.top;
+        curLeft = curPosition.left;
+      } else {
+        curTop = parseFloat(curCSSTop) || 0;
+        curLeft = parseFloat(curCSSLeft) || 0;
+      }
+      
+      if (angular.isFunction(options)) {
+        options = options.call(element, i, curOffset);
+      }
+      
+      if (options.top !== null ) {
+        props.top = (options.top - curOffset.top) + curTop;
+      }
+      if ( options.left !== null ) {
+        props.left = (options.left - curOffset.left) + curLeft;
+      }
+
+      if ('using' in options) {
+        options.using.call(curElem, props);
+      } else {
+        curElem.css({
+          top: props.top + 'px',
+          left: props.left + 'px'
+        });
+      }
+    };
+
+    /**
+     * Provides read-only equivalent of jQuery's position function
+     * @required-by bootstrap-tooltip, bootstrap-affix
+     * @url http://api.jquery.com/offset/
+     * @param element
+     */
+    fn.position = function(element) {
+
+      var offsetParentRect = {top: 0, left: 0},
+          offsetParentElement,
+          offset;
+
+      // Fixed elements are offset from window (parentOffset = {top:0, left: 0}, because it is it's only offset parent
+      if (fn.css(element, 'position') === 'fixed') {
+
+        // We assume that getBoundingClientRect is available when computed position is fixed
+        offset = element.getBoundingClientRect();
+
+      } else {
+
+        // Get *real* offsetParentElement
+        offsetParentElement = offsetParent(element);
+
+        // Get correct offsets
+        offset = fn.offset(element);
+        if (!nodeName(offsetParentElement, 'html')) {
+          offsetParentRect = fn.offset(offsetParentElement);
+        }
+
+        // Add offsetParent borders
+        offsetParentRect.top += fn.css(offsetParentElement, 'borderTopWidth', true);
+        offsetParentRect.left += fn.css(offsetParentElement, 'borderLeftWidth', true);
+      }
+
+      // Subtract parent offsets and element margins
+      return {
+        width: element.offsetWidth,
+        height: element.offsetHeight,
+        top: offset.top - offsetParentRect.top - fn.css(element, 'marginTop', true),
+        left: offset.left - offsetParentRect.left - fn.css(element, 'marginLeft', true)
+      };
+
+    };
+
+    /**
+     * Returns the closest, non-statically positioned offsetParent of a given element
+     * @required-by fn.position
+     * @param element
+     */
+    var offsetParent = function offsetParentElement(element) {
+      var docElement = element.ownerDocument;
+      var offsetParent = element.offsetParent || docElement;
+      if(nodeName(offsetParent, '#document')) return docElement.documentElement;
+      while(offsetParent && !nodeName(offsetParent, 'html') && fn.css(offsetParent, 'position') === 'static') {
+        offsetParent = offsetParent.offsetParent;
+      }
+      return offsetParent || docElement.documentElement;
+    };
+
+    /**
+     * Provides equivalent of jQuery's height function
+     * @required-by bootstrap-affix
+     * @url http://api.jquery.com/height/
+     * @param element
+     * @param outer
+     */
+    fn.height = function(element, outer) {
+      var value = element.offsetHeight;
+      if(outer) {
+        value += fn.css(element, 'marginTop', true) + fn.css(element, 'marginBottom', true);
+      } else {
+        value -= fn.css(element, 'paddingTop', true) + fn.css(element, 'paddingBottom', true) + fn.css(element, 'borderTopWidth', true) + fn.css(element, 'borderBottomWidth', true);
+      }
+      return value;
+    };
+
+    /**
+     * Provides equivalent of jQuery's width function
+     * @required-by bootstrap-affix
+     * @url http://api.jquery.com/width/
+     * @param element
+     * @param outer
+     */
+    fn.width = function(element, outer) {
+      var value = element.offsetWidth;
+      if(outer) {
+        value += fn.css(element, 'marginLeft', true) + fn.css(element, 'marginRight', true);
+      } else {
+        value -= fn.css(element, 'paddingLeft', true) + fn.css(element, 'paddingRight', true) + fn.css(element, 'borderLeftWidth', true) + fn.css(element, 'borderRightWidth', true);
+      }
+      return value;
+    };
+
+    return fn;
+
+  }]);
+
+// Source: parse-options.js
+angular.module('mgcrea.ngStrap.helpers.parseOptions', [])
+
+  .provider('$parseOptions', function() {
+
+    var defaults = this.defaults = {
+      regexp: /^\s*(.*?)(?:\s+as\s+(.*?))?(?:\s+group\s+by\s+(.*))?\s+for\s+(?:([\$\w][\$\w]*)|(?:\(\s*([\$\w][\$\w]*)\s*,\s*([\$\w][\$\w]*)\s*\)))\s+in\s+(.*?)(?:\s+track\s+by\s+(.*?))?$/
+    };
+
+    this.$get = ["$parse", "$q", function($parse, $q) {
+
+      function ParseOptionsFactory(attr, config) {
+
+        var $parseOptions = {};
+
+        // Common vars
+        var options = angular.extend({}, defaults, config);
+        $parseOptions.$values = [];
+
+        // Private vars
+        var match, displayFn, valueName, keyName, groupByFn, valueFn, valuesFn;
+
+        $parseOptions.init = function() {
+          $parseOptions.$match = match = attr.match(options.regexp);
+          displayFn = $parse(match[2] || match[1]),
+          valueName = match[4] || match[6],
+          keyName = match[5],
+          groupByFn = $parse(match[3] || ''),
+          valueFn = $parse(match[2] ? match[1] : valueName),
+          valuesFn = $parse(match[7]);
+        };
+
+        $parseOptions.valuesFn = function(scope, controller) {
+          return $q.when(valuesFn(scope, controller))
+          .then(function(values) {
+            $parseOptions.$values = values ? parseValues(values, scope) : {};
+            return $parseOptions.$values;
+          });
+        };
+
+        $parseOptions.displayValue = function(modelValue) {
+          var scope = {};
+          scope[valueName] = modelValue;
+          return displayFn(scope);
+        };
+
+        // Private functions
+        function parseValues(values, scope) {
+            var new_values = [];
+            if (!Array.isArray || !Array.isArray(values)) {
+                for (var key in values) {
+                    if (values.hasOwnProperty(key)) {
+                        new_values.push({value: parseInt(key), label: values[key]});
+                    }
+                }
+                return new_values.map(function(match, index) {
+                    return {label: match.label, value: match.value, index: index};
+                });
+            } else {
+                return values.map(function(match, index) {
+                    var locals = {}, label, value;
+                    locals[valueName] = match;
+                    label = displayFn(scope, locals);
+                    value = valueFn(scope, locals);
+                    return {label: label, value: value, index: index};
+                });
+            }
+        }
+
+        $parseOptions.init();
+        return $parseOptions;
+
+      }
+
+      return ParseOptionsFactory;
+
+    }];
+
+  });
+
+// Source: raf.js
+(angular.version.minor < 3 && angular.version.dot < 14) && angular.module('ng')
+
+.factory('$$rAF', ["$window", "$timeout", function($window, $timeout) {
+
+  var requestAnimationFrame = $window.requestAnimationFrame ||
+                              $window.webkitRequestAnimationFrame ||
+                              $window.mozRequestAnimationFrame;
+
+  var cancelAnimationFrame = $window.cancelAnimationFrame ||
+                             $window.webkitCancelAnimationFrame ||
+                             $window.mozCancelAnimationFrame ||
+                             $window.webkitCancelRequestAnimationFrame;
+
+  var rafSupported = !!requestAnimationFrame;
+  var raf = rafSupported ?
+    function(fn) {
+      var id = requestAnimationFrame(fn);
+      return function() {
+        cancelAnimationFrame(id);
+      };
+    } :
+    function(fn) {
+      var timer = $timeout(fn, 16.66, false); // 1000 / 60 = 16.666
+      return function() {
+        $timeout.cancel(timer);
+      };
+    };
+
+  raf.supported = rafSupported;
+
+  return raf;
+
+}]);
+
+// .factory('$$animateReflow', function($$rAF, $document) {
+
+//   var bodyEl = $document[0].body;
+
+//   return function(fn) {
+//     //the returned function acts as the cancellation function
+//     return $$rAF(function() {
+//       //the line below will force the browser to perform a repaint
+//       //so that all the animated elements within the animation frame
+//       //will be properly updated and drawn on screen. This is
+//       //required to perform multi-class CSS based animations with
+//       //Firefox. DO NOT REMOVE THIS LINE.
+//       var a = bodyEl.offsetWidth + 1;
+//       fn();
+//     });
+//   };
+
+// });
+
 // Source: datepicker.js
 angular.module('mgcrea.ngStrap.datepicker', [
   'mgcrea.ngStrap.helpers.dateParser',
@@ -1708,744 +2446,6 @@ angular.module('mgcrea.ngStrap.dropdown', ['mgcrea.ngStrap.tooltip'])
 
   }]);
 
-// Source: date-formatter.js
-angular.module('mgcrea.ngStrap.helpers.dateFormatter', [])
-
-  .service('$dateFormatter', ["$locale", "dateFilter", function($locale, dateFilter) {
-
-    // The unused `lang` arguments are on purpose. The default implementation does not
-    // use them and it always uses the locale loaded into the `$locale` service.
-    // Custom implementations might use it, thus allowing different directives to
-    // have different languages.
-
-    this.getDefaultLocale = function() {
-      return $locale.id;
-    };
-
-    // Format is either a data format name, e.g. "shortTime" or "fullDate", or a date format
-    // Return either the corresponding date format or the given date format.
-    this.getDatetimeFormat = function(format, lang) {
-      return $locale.DATETIME_FORMATS[format] || format;
-    };
-
-    this.weekdaysShort = function(lang) {
-      return $locale.DATETIME_FORMATS.SHORTDAY;
-    };
-
-    function splitTimeFormat(format) {
-      return /(h+)([:\.])?(m+)[ ]?(a?)/i.exec(format).slice(1);
-    }
-
-    // h:mm a => h
-    this.hoursFormat = function(timeFormat) {
-      return splitTimeFormat(timeFormat)[0];
-    };
-
-    // h:mm a => mm
-    this.minutesFormat = function(timeFormat) {
-      return splitTimeFormat(timeFormat)[2];
-    };
-
-    // h:mm a => :
-    this.timeSeparator = function(timeFormat) {
-      return splitTimeFormat(timeFormat)[1];
-    };
-
-    // h:mm a => true, H.mm => false
-    this.showAM = function(timeFormat) {
-      return !!splitTimeFormat(timeFormat)[3];
-    };
-
-    this.formatDate = function(date, format, lang, timezone){
-      return dateFilter(date, format, timezone);
-    };
-
-  }]);
-
-// Source: date-parser.js
-angular.module('mgcrea.ngStrap.helpers.dateParser', [])
-
-.provider('$dateParser', ["$localeProvider", function($localeProvider) {
-
-  // define a custom ParseDate object to use instead of native Date
-  // to avoid date values wrapping when setting date component values
-  function ParseDate() {
-    this.year = 1970;
-    this.month = 0;
-    this.day = 1;
-    this.hours = 0;
-    this.minutes = 0;
-    this.seconds = 0;
-    this.milliseconds = 0;
-  }
-
-  ParseDate.prototype.setMilliseconds = function(value) { this.milliseconds = value; };
-  ParseDate.prototype.setSeconds = function(value) { this.seconds = value; };
-  ParseDate.prototype.setMinutes = function(value) { this.minutes = value; };
-  ParseDate.prototype.setHours = function(value) { this.hours = value; };
-  ParseDate.prototype.getHours = function() { return this.hours; };
-  ParseDate.prototype.setDate = function(value) { this.day = value; };
-  ParseDate.prototype.setMonth = function(value) { this.month = value; };
-  ParseDate.prototype.setFullYear = function(value) { this.year = value; };
-  ParseDate.prototype.fromDate = function(value) {
-    this.year = value.getFullYear();
-    this.month = value.getMonth();
-    this.day = value.getDate();
-    this.hours = value.getHours();
-    this.minutes = value.getMinutes();
-    this.seconds = value.getSeconds();
-    this.milliseconds = value.getMilliseconds();
-    return this;
-  };
-
-  ParseDate.prototype.toDate = function() {
-    return new Date(this.year, this.month, this.day, this.hours, this.minutes, this.seconds, this.milliseconds);
-  };
-
-  var proto = ParseDate.prototype;
-
-  function noop() {
-  }
-
-  function isNumeric(n) {
-    return !isNaN(parseFloat(n)) && isFinite(n);
-  }
-
-  function indexOfCaseInsensitive(array, value) {
-    var len = array.length, str=value.toString().toLowerCase();
-    for (var i=0; i<len; i++) {
-      if (array[i].toLowerCase() === str) { return i; }
-    }
-    return -1; // Return -1 per the "Array.indexOf()" method.
-  }
-
-  var defaults = this.defaults = {
-    format: 'shortDate',
-    strict: false
-  };
-
-  this.$get = ["$locale", "dateFilter", function($locale, dateFilter) {
-
-    var DateParserFactory = function(config) {
-
-      var options = angular.extend({}, defaults, config);
-
-      var $dateParser = {};
-
-      var regExpMap = {
-        'sss'   : '[0-9]{3}',
-        'ss'    : '[0-5][0-9]',
-        's'     : options.strict ? '[1-5]?[0-9]' : '[0-9]|[0-5][0-9]',
-        'mm'    : '[0-5][0-9]',
-        'm'     : options.strict ? '[1-5]?[0-9]' : '[0-9]|[0-5][0-9]',
-        'HH'    : '[01][0-9]|2[0-3]',
-        'H'     : options.strict ? '1?[0-9]|2[0-3]' : '[01]?[0-9]|2[0-3]',
-        'hh'    : '[0][1-9]|[1][012]',
-        'h'     : options.strict ? '[1-9]|1[012]' : '0?[1-9]|1[012]',
-        'a'     : 'AM|PM',
-        'EEEE'  : $locale.DATETIME_FORMATS.DAY.join('|'),
-        'EEE'   : $locale.DATETIME_FORMATS.SHORTDAY.join('|'),
-        'dd'    : '0[1-9]|[12][0-9]|3[01]',
-        'd'     : options.strict ? '[1-9]|[1-2][0-9]|3[01]' : '0?[1-9]|[1-2][0-9]|3[01]',
-        'MMMM'  : $locale.DATETIME_FORMATS.MONTH.join('|'),
-        'MMM'   : $locale.DATETIME_FORMATS.SHORTMONTH.join('|'),
-        'MM'    : '0[1-9]|1[012]',
-        'M'     : options.strict ? '[1-9]|1[012]' : '0?[1-9]|1[012]',
-        'yyyy'  : '[1]{1}[0-9]{3}|[2]{1}[0-9]{3}',
-        'yy'    : '[0-9]{2}',
-        'y'     : options.strict ? '-?(0|[1-9][0-9]{0,3})' : '-?0*[0-9]{1,4}',
-      };
-
-      var setFnMap = {
-        'sss'   : proto.setMilliseconds,
-        'ss'    : proto.setSeconds,
-        's'     : proto.setSeconds,
-        'mm'    : proto.setMinutes,
-        'm'     : proto.setMinutes,
-        'HH'    : proto.setHours,
-        'H'     : proto.setHours,
-        'hh'    : proto.setHours,
-        'h'     : proto.setHours,
-        'EEEE'  : noop,
-        'EEE'   : noop,
-        'dd'    : proto.setDate,
-        'd'     : proto.setDate,
-        'a'     : function(value) { var hours = this.getHours() % 12; return this.setHours(value.match(/pm/i) ? hours + 12 : hours); },
-        'MMMM'  : function(value) { return this.setMonth(indexOfCaseInsensitive($locale.DATETIME_FORMATS.MONTH, value)); },
-        'MMM'   : function(value) { return this.setMonth(indexOfCaseInsensitive($locale.DATETIME_FORMATS.SHORTMONTH, value)); },
-        'MM'    : function(value) { return this.setMonth(1 * value - 1); },
-        'M'     : function(value) { return this.setMonth(1 * value - 1); },
-        'yyyy'  : proto.setFullYear,
-        'yy'    : function(value) { return this.setFullYear(2000 + 1 * value); },
-        'y'     : proto.setFullYear
-      };
-
-      var regex, setMap;
-
-      $dateParser.init = function() {
-        $dateParser.$format = $locale.DATETIME_FORMATS[options.format] || options.format;
-        regex = regExpForFormat($dateParser.$format);
-        setMap = setMapForFormat($dateParser.$format);
-      };
-
-      $dateParser.isValid = function(date) {
-        if(angular.isDate(date)) return !isNaN(date.getTime());
-        return regex.test(date);
-      };
-
-      $dateParser.parse = function(value, baseDate, format, timezone) {
-        // check for date format special names
-        if(format) format = $locale.DATETIME_FORMATS[format] || format;
-        if(angular.isDate(value)) value = dateFilter(value, format || $dateParser.$format, timezone);
-        var formatRegex = format ? regExpForFormat(format) : regex;
-        var formatSetMap = format ? setMapForFormat(format) : setMap;
-        var matches = formatRegex.exec(value);
-        if(!matches) return false;
-        // use custom ParseDate object to set parsed values
-        var date = baseDate && !isNaN(baseDate.getTime()) ? new ParseDate().fromDate(baseDate) : new ParseDate().fromDate(new Date(1970, 0, 1, 0));
-        for(var i = 0; i < matches.length - 1; i++) {
-          formatSetMap[i] && formatSetMap[i].call(date, matches[i+1]);
-        }
-        // convert back to native Date object
-        var newDate = date.toDate();
-
-        // check new native Date object for day values overflow
-        if (parseInt(date.day, 10) !== newDate.getDate()) {
-          return false;
-        }
-
-        return newDate;
-      };
-
-      $dateParser.getDateForAttribute = function(key, value) {
-        var date;
-
-        if(value === 'today') {
-          var today = new Date();
-          date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + (key === 'maxDate' ? 1 : 0), 0, 0, 0, (key === 'minDate' ? 0 : -1));
-        } else if(angular.isString(value) && value.match(/^".+"$/)) { // Support {{ dateObj }}
-          date = new Date(value.substr(1, value.length - 2));
-        } else if(isNumeric(value)) {
-          date = new Date(parseInt(value, 10));
-        } else if (angular.isString(value) && 0 === value.length) { // Reset date
-          date = key === 'minDate' ? -Infinity : +Infinity;
-        } else {
-          date = new Date(value);
-        }
-
-        return date;
-      };
-
-      $dateParser.getTimeForAttribute = function(key, value) {
-        var time;
-
-        if(value === 'now') {
-          time = new Date().setFullYear(1970, 0, 1);
-        } else if(angular.isString(value) && value.match(/^".+"$/)) {
-          time = new Date(value.substr(1, value.length - 2)).setFullYear(1970, 0, 1);
-        } else if(isNumeric(value)) {
-          time = new Date(parseInt(value, 10)).setFullYear(1970, 0, 1);
-        } else if (angular.isString(value) && 0 === value.length) { // Reset time
-          time = key === 'minTime' ? -Infinity : +Infinity;
-        } else {
-          time = $dateParser.parse(value, new Date(1970, 0, 1, 0));
-        }
-
-        return time;
-      };
-
-      /* Handle switch to/from daylight saving.
-      * Hours may be non-zero on daylight saving cut-over:
-      * > 12 when midnight changeover, but then cannot generate
-      * midnight datetime, so jump to 1AM, otherwise reset.
-      * @param  date  (Date) the date to check
-      * @return  (Date) the corrected date
-      *
-      * __ copied from jquery ui datepicker __
-      */
-      $dateParser.daylightSavingAdjust = function(date) {
-        if (!date) {
-          return null;
-        }
-        date.setHours(date.getHours() > 12 ? date.getHours() + 2 : 0);
-        return date;
-      };
-
-      /* Correct the date for timezone offset.
-      * @param  date  (Date) the date to adjust
-      * @param  timezone  (string) the timezone to adjust for
-      * @param  undo  (boolean) to add or subtract timezone offset
-      * @return  (Date) the corrected date
-      */
-      $dateParser.timezoneOffsetAdjust = function(date, timezone, undo) {
-        if (!date) {
-          return null;
-        }
-        // Right now, only 'UTC' is supported.
-        if (timezone && timezone === 'UTC') {
-          date = new Date(date.getTime());
-          date.setMinutes(date.getMinutes() + (undo?-1:1)*date.getTimezoneOffset());
-        }
-        return date;
-      };
-
-      // Private functions
-
-      function setMapForFormat(format) {
-        var keys = Object.keys(setFnMap), i;
-        var map = [], sortedMap = [];
-        // Map to setFn
-        var clonedFormat = format;
-        for(i = 0; i < keys.length; i++) {
-          if(format.split(keys[i]).length > 1) {
-            var index = clonedFormat.search(keys[i]);
-            format = format.split(keys[i]).join('');
-            if(setFnMap[keys[i]]) {
-              map[index] = setFnMap[keys[i]];
-            }
-          }
-        }
-        // Sort result map
-        angular.forEach(map, function(v) {
-          // conditional required since angular.forEach broke around v1.2.21
-          // related pr: https://github.com/angular/angular.js/pull/8525
-          if(v) sortedMap.push(v);
-        });
-        return sortedMap;
-      }
-
-      function escapeReservedSymbols(text) {
-        return text.replace(/\//g, '[\\/]').replace('/-/g', '[-]').replace(/\./g, '[.]').replace(/\\s/g, '[\\s]');
-      }
-
-      function regExpForFormat(format) {
-        var keys = Object.keys(regExpMap), i;
-
-        var re = format;
-        // Abstract replaces to avoid collisions
-        for(i = 0; i < keys.length; i++) {
-          re = re.split(keys[i]).join('${' + i + '}');
-        }
-        // Replace abstracted values
-        for(i = 0; i < keys.length; i++) {
-          re = re.split('${' + i + '}').join('(' + regExpMap[keys[i]] + ')');
-        }
-        format = escapeReservedSymbols(format);
-
-        return new RegExp('^' + re + '$', ['i']);
-      }
-
-      $dateParser.init();
-      return $dateParser;
-
-    };
-
-    return DateParserFactory;
-
-  }];
-
-}]);
-
-// Source: debounce.js
-angular.module('mgcrea.ngStrap.helpers.debounce', [])
-
-// @source jashkenas/underscore
-// @url https://github.com/jashkenas/underscore/blob/1.5.2/underscore.js#L693
-.factory('debounce', ["$timeout", function($timeout) {
-  return function(func, wait, immediate) {
-    var timeout = null;
-    return function() {
-      var context = this,
-        args = arguments,
-        callNow = immediate && !timeout;
-      if(timeout) {
-        $timeout.cancel(timeout);
-      }
-      timeout = $timeout(function later() {
-        timeout = null;
-        if(!immediate) {
-          func.apply(context, args);
-        }
-      }, wait, false);
-      if(callNow) {
-        func.apply(context, args);
-      }
-      return timeout;
-    };
-  };
-}])
-
-
-// @source jashkenas/underscore
-// @url https://github.com/jashkenas/underscore/blob/1.5.2/underscore.js#L661
-.factory('throttle', ["$timeout", function($timeout) {
-  return function(func, wait, options) {
-    var timeout = null;
-    options || (options = {});
-    return function() {
-      var context = this,
-        args = arguments;
-      if(!timeout) {
-        if(options.leading !== false) {
-          func.apply(context, args);
-        }
-        timeout = $timeout(function later() {
-          timeout = null;
-          if(options.trailing !== false) {
-            func.apply(context, args);
-          }
-        }, wait, false);
-      }
-    };
-  };
-}]);
-
-// Source: dimensions.js
-angular.module('mgcrea.ngStrap.helpers.dimensions', [])
-
-  .factory('dimensions', ["$document", "$window", function($document, $window) {
-
-    var jqLite = angular.element;
-    var fn = {};
-
-    /**
-     * Test the element nodeName
-     * @param element
-     * @param name
-     */
-    var nodeName = fn.nodeName = function(element, name) {
-      return element.nodeName && element.nodeName.toLowerCase() === name.toLowerCase();
-    };
-
-    /**
-     * Returns the element computed style
-     * @param element
-     * @param prop
-     * @param extra
-     */
-    fn.css = function(element, prop, extra) {
-      var value;
-      if (element.currentStyle) { //IE
-        value = element.currentStyle[prop];
-      } else if (window.getComputedStyle) {
-        value = window.getComputedStyle(element)[prop];
-      } else {
-        value = element.style[prop];
-      }
-      return extra === true ? parseFloat(value) || 0 : value;
-    };
-
-    /**
-     * Provides read-only equivalent of jQuery's offset function:
-     * @required-by bootstrap-tooltip, bootstrap-affix
-     * @url http://api.jquery.com/offset/
-     * @param element
-     */
-    fn.offset = function(element) {
-      var boxRect = element.getBoundingClientRect();
-      var docElement = element.ownerDocument;
-      return {
-        width: boxRect.width || element.offsetWidth,
-        height: boxRect.height || element.offsetHeight,
-        top: boxRect.top + (window.pageYOffset || docElement.documentElement.scrollTop) - (docElement.documentElement.clientTop || 0),
-        left: boxRect.left + (window.pageXOffset || docElement.documentElement.scrollLeft) - (docElement.documentElement.clientLeft || 0)
-      };
-    };
-  
-    /**
-     * Provides set equivalent of jQuery's offset function:
-     * @required-by bootstrap-tooltip
-     * @url http://api.jquery.com/offset/
-     * @param element
-     * @param options
-     * @param i
-     */
-    fn.setOffset = function (element, options, i) {
-      var curPosition,
-          curLeft,
-          curCSSTop,
-          curTop,
-          curOffset,
-          curCSSLeft,
-          calculatePosition,
-          position = fn.css(element, 'position'),
-          curElem = angular.element(element),
-          props = {};
-      
-      // Set position first, in-case top/left are set even on static elem
-      if (position === 'static') {
-        element.style.position = 'relative';
-      }
-      
-      curOffset = fn.offset(element);
-      curCSSTop = fn.css(element, 'top');
-      curCSSLeft = fn.css(element, 'left');
-      calculatePosition = (position === 'absolute' || position === 'fixed') && 
-                          (curCSSTop + curCSSLeft).indexOf('auto') > -1;
-      
-      // Need to be able to calculate position if either
-      // top or left is auto and position is either absolute or fixed
-      if (calculatePosition) {
-        curPosition = fn.position(element);
-        curTop = curPosition.top;
-        curLeft = curPosition.left;
-      } else {
-        curTop = parseFloat(curCSSTop) || 0;
-        curLeft = parseFloat(curCSSLeft) || 0;
-      }
-      
-      if (angular.isFunction(options)) {
-        options = options.call(element, i, curOffset);
-      }
-      
-      if (options.top !== null ) {
-        props.top = (options.top - curOffset.top) + curTop;
-      }
-      if ( options.left !== null ) {
-        props.left = (options.left - curOffset.left) + curLeft;
-      }
-
-      if ('using' in options) {
-        options.using.call(curElem, props);
-      } else {
-        curElem.css({
-          top: props.top + 'px',
-          left: props.left + 'px'
-        });
-      }
-    };
-
-    /**
-     * Provides read-only equivalent of jQuery's position function
-     * @required-by bootstrap-tooltip, bootstrap-affix
-     * @url http://api.jquery.com/offset/
-     * @param element
-     */
-    fn.position = function(element) {
-
-      var offsetParentRect = {top: 0, left: 0},
-          offsetParentElement,
-          offset;
-
-      // Fixed elements are offset from window (parentOffset = {top:0, left: 0}, because it is it's only offset parent
-      if (fn.css(element, 'position') === 'fixed') {
-
-        // We assume that getBoundingClientRect is available when computed position is fixed
-        offset = element.getBoundingClientRect();
-
-      } else {
-
-        // Get *real* offsetParentElement
-        offsetParentElement = offsetParent(element);
-
-        // Get correct offsets
-        offset = fn.offset(element);
-        if (!nodeName(offsetParentElement, 'html')) {
-          offsetParentRect = fn.offset(offsetParentElement);
-        }
-
-        // Add offsetParent borders
-        offsetParentRect.top += fn.css(offsetParentElement, 'borderTopWidth', true);
-        offsetParentRect.left += fn.css(offsetParentElement, 'borderLeftWidth', true);
-      }
-
-      // Subtract parent offsets and element margins
-      return {
-        width: element.offsetWidth,
-        height: element.offsetHeight,
-        top: offset.top - offsetParentRect.top - fn.css(element, 'marginTop', true),
-        left: offset.left - offsetParentRect.left - fn.css(element, 'marginLeft', true)
-      };
-
-    };
-
-    /**
-     * Returns the closest, non-statically positioned offsetParent of a given element
-     * @required-by fn.position
-     * @param element
-     */
-    var offsetParent = function offsetParentElement(element) {
-      var docElement = element.ownerDocument;
-      var offsetParent = element.offsetParent || docElement;
-      if(nodeName(offsetParent, '#document')) return docElement.documentElement;
-      while(offsetParent && !nodeName(offsetParent, 'html') && fn.css(offsetParent, 'position') === 'static') {
-        offsetParent = offsetParent.offsetParent;
-      }
-      return offsetParent || docElement.documentElement;
-    };
-
-    /**
-     * Provides equivalent of jQuery's height function
-     * @required-by bootstrap-affix
-     * @url http://api.jquery.com/height/
-     * @param element
-     * @param outer
-     */
-    fn.height = function(element, outer) {
-      var value = element.offsetHeight;
-      if(outer) {
-        value += fn.css(element, 'marginTop', true) + fn.css(element, 'marginBottom', true);
-      } else {
-        value -= fn.css(element, 'paddingTop', true) + fn.css(element, 'paddingBottom', true) + fn.css(element, 'borderTopWidth', true) + fn.css(element, 'borderBottomWidth', true);
-      }
-      return value;
-    };
-
-    /**
-     * Provides equivalent of jQuery's width function
-     * @required-by bootstrap-affix
-     * @url http://api.jquery.com/width/
-     * @param element
-     * @param outer
-     */
-    fn.width = function(element, outer) {
-      var value = element.offsetWidth;
-      if(outer) {
-        value += fn.css(element, 'marginLeft', true) + fn.css(element, 'marginRight', true);
-      } else {
-        value -= fn.css(element, 'paddingLeft', true) + fn.css(element, 'paddingRight', true) + fn.css(element, 'borderLeftWidth', true) + fn.css(element, 'borderRightWidth', true);
-      }
-      return value;
-    };
-
-    return fn;
-
-  }]);
-
-// Source: parse-options.js
-angular.module('mgcrea.ngStrap.helpers.parseOptions', [])
-
-  .provider('$parseOptions', function() {
-
-    var defaults = this.defaults = {
-      regexp: /^\s*(.*?)(?:\s+as\s+(.*?))?(?:\s+group\s+by\s+(.*))?\s+for\s+(?:([\$\w][\$\w]*)|(?:\(\s*([\$\w][\$\w]*)\s*,\s*([\$\w][\$\w]*)\s*\)))\s+in\s+(.*?)(?:\s+track\s+by\s+(.*?))?$/
-    };
-
-    this.$get = ["$parse", "$q", function($parse, $q) {
-
-      function ParseOptionsFactory(attr, config) {
-
-        var $parseOptions = {};
-
-        // Common vars
-        var options = angular.extend({}, defaults, config);
-        $parseOptions.$values = [];
-
-        // Private vars
-        var match, displayFn, valueName, keyName, groupByFn, valueFn, valuesFn;
-
-        $parseOptions.init = function() {
-          $parseOptions.$match = match = attr.match(options.regexp);
-          displayFn = $parse(match[2] || match[1]),
-          valueName = match[4] || match[6],
-          keyName = match[5],
-          groupByFn = $parse(match[3] || ''),
-          valueFn = $parse(match[2] ? match[1] : valueName),
-          valuesFn = $parse(match[7]);
-        };
-
-        $parseOptions.valuesFn = function(scope, controller) {
-          return $q.when(valuesFn(scope, controller))
-          .then(function(values) {
-            $parseOptions.$values = values ? parseValues(values, scope) : {};
-            return $parseOptions.$values;
-          });
-        };
-
-        $parseOptions.displayValue = function(modelValue) {
-          var scope = {};
-          scope[valueName] = modelValue;
-          return displayFn(scope);
-        };
-
-        // Private functions
-        function parseValues(values, scope) {
-            var new_values = [];
-            if (!Array.isArray || !Array.isArray(values)) {
-                for (var key in values) {
-                    if (values.hasOwnProperty(key)) {
-                        new_values.push({value: parseInt(key), label: values[key]});
-                    }
-                }
-                return new_values.map(function(match, index) {
-                    return {label: match.label, value: match.value, index: index};
-                });
-            } else {
-                return values.map(function(match, index) {
-                    var locals = {}, label, value;
-                    locals[valueName] = match;
-                    label = displayFn(scope, locals);
-                    value = valueFn(scope, locals);
-                    return {label: label, value: value, index: index};
-                });
-            }
-        }
-
-        $parseOptions.init();
-        return $parseOptions;
-
-      }
-
-      return ParseOptionsFactory;
-
-    }];
-
-  });
-
-// Source: raf.js
-(angular.version.minor < 3 && angular.version.dot < 14) && angular.module('ng')
-
-.factory('$$rAF', ["$window", "$timeout", function($window, $timeout) {
-
-  var requestAnimationFrame = $window.requestAnimationFrame ||
-                              $window.webkitRequestAnimationFrame ||
-                              $window.mozRequestAnimationFrame;
-
-  var cancelAnimationFrame = $window.cancelAnimationFrame ||
-                             $window.webkitCancelAnimationFrame ||
-                             $window.mozCancelAnimationFrame ||
-                             $window.webkitCancelRequestAnimationFrame;
-
-  var rafSupported = !!requestAnimationFrame;
-  var raf = rafSupported ?
-    function(fn) {
-      var id = requestAnimationFrame(fn);
-      return function() {
-        cancelAnimationFrame(id);
-      };
-    } :
-    function(fn) {
-      var timer = $timeout(fn, 16.66, false); // 1000 / 60 = 16.666
-      return function() {
-        $timeout.cancel(timer);
-      };
-    };
-
-  raf.supported = rafSupported;
-
-  return raf;
-
-}]);
-
-// .factory('$$animateReflow', function($$rAF, $document) {
-
-//   var bodyEl = $document[0].body;
-
-//   return function(fn) {
-//     //the returned function acts as the cancellation function
-//     return $$rAF(function() {
-//       //the line below will force the browser to perform a repaint
-//       //so that all the animated elements within the animation frame
-//       //will be properly updated and drawn on screen. This is
-//       //required to perform multi-class CSS based animations with
-//       //Firefox. DO NOT REMOVE THIS LINE.
-//       var a = bodyEl.offsetWidth + 1;
-//       fn();
-//     });
-//   };
-
-// });
-
 // Source: modal.js
 angular.module('mgcrea.ngStrap.modal', ['mgcrea.ngStrap.helpers.dimensions'])
 
@@ -2788,6 +2788,369 @@ angular.module('mgcrea.ngStrap.modal', ['mgcrea.ngStrap.helpers.dimensions'])
           if (modal) modal.destroy();
           options = null;
           modal = null;
+        });
+
+      }
+    };
+
+  }]);
+
+// Source: select.js
+angular.module('mgcrea.ngStrap.select', ['mgcrea.ngStrap.tooltip', 'mgcrea.ngStrap.helpers.parseOptions'])
+
+  .filter('startsWithLetter', function () {
+    return function (items, key, letter) {
+      var filtered = [];
+      var letterMatch = new RegExp(letter, 'i');
+      for (var i = 0; i < items.length; i++) {
+        var item = items[i];
+        if (letterMatch.test(item[key].substring(0, 1))) {
+          filtered.push(item);
+        }
+      }
+      return filtered;
+    };
+  })
+
+  .provider('$select', function() {
+
+    var defaults = this.defaults = {
+      animation: 'am-fade',
+      prefixClass: 'select',
+      prefixEvent: '$select',
+      placement: 'bottom-left',
+      template: 'select/select.tpl.html',
+      trigger: 'focus',
+      container: false,
+      keyboard: true,
+      html: false,
+      delay: 0,
+      multiple: false,
+      allNoneButtons: false,
+      sort: true,
+      caretHtml: '&nbsp;<span class="caret"></span>',
+      placeholder: 'Choose among the following...',
+      allText: 'All',
+      noneText: 'None',
+      maxLength: 3,
+      maxLengthHtml: 'selected',
+      iconCheckmark: 'glyphicon glyphicon-ok'
+    };
+
+    this.$get = ["$window", "$document", "$rootScope", "$tooltip", "$timeout", "$filter", function($window, $document, $rootScope, $tooltip, $timeout, $filter) {
+
+      var bodyEl = angular.element($window.document.body);
+      var isNative = /(ip(a|o)d|iphone|android)/ig.test($window.navigator.userAgent);
+      var isTouch = ('createTouch' in $window.document) && isNative;
+
+      function SelectFactory(element, controller, config) {
+
+        var $select = {};
+
+        // Common vars
+        var options = angular.extend({}, defaults, config);
+
+        // parse sort option value to support attribute as string
+        // when binded to interpolated value
+        options.sort = options.sort.toString().match(/true|1/i);
+
+        $select = $tooltip(element, options);
+        var scope = $select.$scope;
+
+        scope.$matches = [];
+        scope.$activeIndex = 0;
+        scope.$isMultiple = options.multiple;
+        scope.$showAllNoneButtons = options.allNoneButtons && options.multiple;
+        scope.$iconCheckmark = options.iconCheckmark;
+        scope.$allText = options.allText;
+        scope.$noneText = options.noneText;
+
+        // track by in ngOptions fix
+        scope.$trackBy = options.trackBy;
+
+
+        scope.$activate = function(index) {
+          scope.$$postDigest(function() {
+            $select.activate(index);
+          });
+        };
+
+        scope.$select = function(index, evt) {
+          scope.$$postDigest(function() {
+            $select.select(index);
+          });
+        };
+
+        scope.$isVisible = function() {
+          return $select.$isVisible();
+        };
+
+        scope.$isActive = function(index) {
+          return $select.$isActive(index);
+        };
+
+        scope.$selectAll = function () {
+          for (var i = 0; i < scope.$matches.length; i++) {
+            if (!scope.$isActive(i)) {
+              scope.$select(i);
+            }
+          }
+        };
+
+        scope.$selectNone = function () {
+          for (var i = 0; i < scope.$matches.length; i++) {
+            if (scope.$isActive(i)) {
+              scope.$select(i);
+            }
+          }
+        };
+
+        // Public methods
+
+        $select.update = function(matches) {
+          scope.$matches = matches;
+          $select.$updateActiveIndex();
+        };
+
+        $select.activate = function(index) {
+          if(options.multiple) {
+            $select.$isActive(index) ? scope.$activeIndex.splice(scope.$activeIndex.indexOf(index), 1) : scope.$activeIndex.push(index);
+            if(options.sort) scope.$activeIndex.sort();
+          } else {
+            scope.$activeIndex = index;
+          }
+          return scope.$activeIndex;
+        };
+
+        $select.select = function(index) {
+          var value = scope.$matches[index].value;
+          scope.$apply(function() {
+            $select.activate(index);
+            if(options.multiple) {
+              controller.$setViewValue(scope.$activeIndex.map(function(index) {
+                return scope.$matches[index].value;
+              }));
+            } else {
+              controller.$setViewValue(value);
+              // Hide if single select
+              $select.hide();
+            }
+          });
+          // Emit event
+          scope.$emit(options.prefixEvent + '.select', value, index, $select);
+        };
+
+        // Protected methods
+
+        $select.$updateActiveIndex = function() {
+          if(controller.$modelValue && scope.$matches.length) {
+            if(options.multiple && angular.isArray(controller.$modelValue)) {
+              scope.$activeIndex = controller.$modelValue.map(function(value) {
+                return $select.$getIndex(value);
+              });
+            } else {
+              scope.$activeIndex = $select.$getIndex(controller.$modelValue);
+            }
+          } else if(scope.$activeIndex >= scope.$matches.length) {
+            scope.$activeIndex = options.multiple ? [] : 0;
+          }
+        };
+
+        $select.$isVisible = function() {
+          if(!options.minLength || !controller) {
+            return scope.$matches.length;
+          }
+          // minLength support
+          return scope.$matches.length && controller.$viewValue.length >= options.minLength;
+        };
+
+        $select.$isActive = function(index) {
+          if(options.multiple) {
+            return scope.$activeIndex.indexOf(index) !== -1;
+          } else {
+            return scope.$activeIndex === index;
+          }
+        };
+
+        $select.$getIndex = function(value) {
+          var l = scope.$matches.length, i = l;
+          if(!l) return;var trackBy = scope.$trackBy;
+          if (trackBy) {
+            for(i = l; i--;) {
+              if(scope.$matches[i].value[trackBy] === value[trackBy]) break;
+            }
+          } else {
+            for(i = l; i--;) {
+              if(scope.$matches[i].value === value) break;
+            }
+          }
+          if(i < 0) return;
+          return i;
+        };
+
+        $select.$onMouseDown = function(evt) {
+          // Prevent blur on mousedown on .dropdown-menu
+          evt.preventDefault();
+          evt.stopPropagation();
+          // Emulate click for mobile devices
+          if(isTouch) {
+            var targetEl = angular.element(evt.target);
+            targetEl.triggerHandler('click');
+          }
+        };
+
+        $select.$onKeyDown = function(evt) {
+          var specialChars = [9, 13, 38, 40];
+          if (specialChars.indexOf(evt.keyCode) < 0) {
+            var filtered = $filter('startsWithLetter')(scope.$matches, 'label', String.fromCharCode(evt.keyCode));
+            if (filtered.length > 0) {
+                scope.$activeIndex = filtered[0].index;
+            }
+          } else {
+            evt.preventDefault();
+            evt.stopPropagation();
+
+            // Select with enter
+            if(!options.multiple && (evt.keyCode === 13 || evt.keyCode === 9)) {
+              return $select.select(scope.$activeIndex);
+            }
+
+            // Navigate with keyboard
+            if(evt.keyCode === 38 && scope.$activeIndex > 0) scope.$activeIndex--;
+            else if(evt.keyCode === 40 && scope.$activeIndex < scope.$matches.length - 1) scope.$activeIndex++;
+            else if(angular.isUndefined(scope.$activeIndex)) scope.$activeIndex = 0;
+          }
+
+          // scroll do element
+          var liActive = $select.$element.find('li.active');
+          $select.$element[0].scrollTop = scope.$activeIndex * liActive.height();
+          scope.$digest();
+        };
+
+        // Overrides
+
+        var _show = $select.show;
+        $select.show = function() {
+          _show();
+          if(options.multiple) {
+            $select.$element.addClass('select-multiple');
+          }
+          // use timeout to hookup the events to prevent
+          // event bubbling from being processed imediately.
+          $timeout(function() {
+            $select.$element.on(isTouch ? 'touchstart' : 'mousedown', $select.$onMouseDown);
+            if(options.keyboard) {
+              element.on('keydown', $select.$onKeyDown);
+            }
+          }, 0, false);
+        };
+
+        var _hide = $select.hide;
+        $select.hide = function() {
+          $select.$element.off(isTouch ? 'touchstart' : 'mousedown', $select.$onMouseDown);
+          if(options.keyboard) {
+            element.off('keydown', $select.$onKeyDown);
+          }
+          _hide(true);
+        };
+
+        return $select;
+
+      }
+
+      SelectFactory.defaults = defaults;
+      return SelectFactory;
+
+    }];
+
+  })
+
+  .directive('bsSelect', ["$window", "$parse", "$q", "$select", "$parseOptions", function($window, $parse, $q, $select, $parseOptions) {
+
+    var defaults = $select.defaults;
+
+    return {
+      restrict: 'EAC',
+      require: 'ngModel',
+      link: function postLink(scope, element, attr, controller) {
+
+        // Directive options
+        var options = {scope: scope, placeholder: defaults.placeholder};
+        angular.forEach(['placement', 'container', 'delay', 'trigger', 'keyboard', 'html', 'animation', 'template', 'placeholder', 'multiple', 'allNoneButtons', 'maxLength', 'maxLengthHtml', 'allText', 'noneText', 'iconCheckmark', 'autoClose', 'id', 'sort', 'caretHtml'], function(key) {
+          if(angular.isDefined(attr[key])) options[key] = attr[key];
+        });
+
+        // Add support for select markup
+        if(element[0].nodeName.toLowerCase() === 'select') {
+          var inputEl = element;
+          inputEl.css('display', 'none');
+          element = angular.element('<button type="button" class="btn btn-default"></button>');
+          inputEl.after(element);
+        }
+
+        // Build proper ngOptions
+        var parsedOptions = $parseOptions(attr.ngOptions);
+
+        // Track by in ngOptions fix
+        var trackBy = parsedOptions.$match[8];
+        if (trackBy) {
+          trackBy = trackBy.replace(/^(.*)\./, '').trim();
+          options['trackBy'] = trackBy;
+        }
+
+        // Initialize select
+        var select = $select(element, controller, options);
+
+        // Watch ngOptions values before filtering for changes
+        var watchedOptions = parsedOptions.$match[7].replace(/\|.+/, '').trim();
+        scope.$watch(watchedOptions, function(newValue, oldValue) {
+          // console.warn('scope.$watch(%s)', watchedOptions, newValue, oldValue);
+          parsedOptions.valuesFn(scope, controller)
+          .then(function(values) {
+            select.update(values);
+            controller.$render();
+          });
+        }, true);
+
+        // Watch model for changes
+        scope.$watch(attr.ngModel, function(newValue, oldValue) {
+          // console.warn('scope.$watch(%s)', attr.ngModel, newValue, oldValue);
+          select.$updateActiveIndex();
+          controller.$render();
+        }, true);
+
+        // Model rendering in view
+        controller.$render = function () {
+          // console.warn('$render', element.attr('ng-model'), 'controller.$modelValue', typeof controller.$modelValue, controller.$modelValue, 'controller.$viewValue', typeof controller.$viewValue, controller.$viewValue);
+          var selected, index;
+          if(options.multiple && angular.isArray(controller.$modelValue)) {
+            selected = controller.$modelValue.map(function(value) {
+              index = select.$getIndex(value);
+              return angular.isDefined(index) ? select.$scope.$matches[index].label : false;
+            }).filter(angular.isDefined);
+            if(selected.length > (options.maxLength || defaults.maxLength)) {
+              selected = selected.length + ' ' + (options.maxLengthHtml || defaults.maxLengthHtml);
+            } else {
+              selected = selected.join(', ');
+            }
+          } else {
+            index = select.$getIndex(controller.$modelValue);
+            selected = angular.isDefined(index) ? select.$scope.$matches[index].label : false;
+          }
+          element.html((selected ? selected : options.placeholder) + (options.caretHtml ? options.caretHtml : defaults.caretHtml));
+        };
+
+        if(options.multiple){
+          controller.$isEmpty = function(value){
+            return !value || value.length === 0;
+          };
+        }
+
+        // Garbage collection
+        scope.$on('$destroy', function() {
+          if (select) select.destroy();
+          options = null;
+          select = null;
         });
 
       }
@@ -3221,352 +3584,6 @@ angular.module('mgcrea.ngStrap.scrollspy', ['mgcrea.ngStrap.helpers.debounce', '
         });
       }
 
-    };
-
-  }]);
-
-// Source: select.js
-angular.module('mgcrea.ngStrap.select', ['mgcrea.ngStrap.tooltip', 'mgcrea.ngStrap.helpers.parseOptions'])
-
-  .filter('startsWithLetter', function () {
-    return function (items, key, letter) {
-      var filtered = [];
-      var letterMatch = new RegExp(letter, 'i');
-      for (var i = 0; i < items.length; i++) {
-        var item = items[i];
-        if (letterMatch.test(item[key].substring(0, 1))) {
-          filtered.push(item);
-        }
-      }
-      return filtered;
-    };
-  })
-
-  .provider('$select', function() {
-
-    var defaults = this.defaults = {
-      animation: 'am-fade',
-      prefixClass: 'select',
-      prefixEvent: '$select',
-      placement: 'bottom-left',
-      template: 'select/select.tpl.html',
-      trigger: 'focus',
-      container: false,
-      keyboard: true,
-      html: false,
-      delay: 0,
-      multiple: false,
-      allNoneButtons: false,
-      sort: true,
-      caretHtml: '&nbsp;<span class="caret"></span>',
-      placeholder: 'Choose among the following...',
-      allText: 'All',
-      noneText: 'None',
-      maxLength: 3,
-      maxLengthHtml: 'selected',
-      iconCheckmark: 'glyphicon glyphicon-ok'
-    };
-
-    this.$get = ["$window", "$document", "$rootScope", "$tooltip", "$timeout", "$filter", function($window, $document, $rootScope, $tooltip, $timeout, $filter) {
-
-      var bodyEl = angular.element($window.document.body);
-      var isNative = /(ip(a|o)d|iphone|android)/ig.test($window.navigator.userAgent);
-      var isTouch = ('createTouch' in $window.document) && isNative;
-
-      function SelectFactory(element, controller, config) {
-
-        var $select = {};
-
-        // Common vars
-        var options = angular.extend({}, defaults, config);
-
-        // parse sort option value to support attribute as string
-        // when binded to interpolated value
-        options.sort = options.sort.toString().match(/true|1/i);
-
-        $select = $tooltip(element, options);
-        var scope = $select.$scope;
-
-        scope.$matches = [];
-        scope.$activeIndex = 0;
-        scope.$isMultiple = options.multiple;
-        scope.$showAllNoneButtons = options.allNoneButtons && options.multiple;
-        scope.$iconCheckmark = options.iconCheckmark;
-        scope.$allText = options.allText;
-        scope.$noneText = options.noneText;
-
-        scope.$activate = function(index) {
-          scope.$$postDigest(function() {
-            $select.activate(index);
-          });
-        };
-
-        scope.$select = function(index, evt) {
-          scope.$$postDigest(function() {
-            $select.select(index);
-          });
-        };
-
-        scope.$isVisible = function() {
-          return $select.$isVisible();
-        };
-
-        scope.$isActive = function(index) {
-          return $select.$isActive(index);
-        };
-
-        scope.$selectAll = function () {
-          for (var i = 0; i < scope.$matches.length; i++) {
-            if (!scope.$isActive(i)) {
-              scope.$select(i);
-            }
-          }
-        };
-
-        scope.$selectNone = function () {
-          for (var i = 0; i < scope.$matches.length; i++) {
-            if (scope.$isActive(i)) {
-              scope.$select(i);
-            }
-          }
-        };
-
-        // Public methods
-
-        $select.update = function(matches) {
-          scope.$matches = matches;
-          $select.$updateActiveIndex();
-        };
-
-        $select.activate = function(index) {
-          if(options.multiple) {
-            $select.$isActive(index) ? scope.$activeIndex.splice(scope.$activeIndex.indexOf(index), 1) : scope.$activeIndex.push(index);
-            if(options.sort) scope.$activeIndex.sort();
-          } else {
-            scope.$activeIndex = index;
-          }
-          return scope.$activeIndex;
-        };
-
-        $select.select = function(index) {
-          var value = scope.$matches[index].value;
-          scope.$apply(function() {
-            $select.activate(index);
-            if(options.multiple) {
-              controller.$setViewValue(scope.$activeIndex.map(function(index) {
-                return scope.$matches[index].value;
-              }));
-            } else {
-              controller.$setViewValue(value);
-              // Hide if single select
-              $select.hide();
-            }
-          });
-          // Emit event
-          scope.$emit(options.prefixEvent + '.select', value, index, $select);
-        };
-
-        // Protected methods
-
-        $select.$updateActiveIndex = function() {
-          if(controller.$modelValue && scope.$matches.length) {
-            if(options.multiple && angular.isArray(controller.$modelValue)) {
-              scope.$activeIndex = controller.$modelValue.map(function(value) {
-                return $select.$getIndex(value);
-              });
-            } else {
-              scope.$activeIndex = $select.$getIndex(controller.$modelValue);
-            }
-          } else if(scope.$activeIndex >= scope.$matches.length) {
-            scope.$activeIndex = options.multiple ? [] : 0;
-          }
-        };
-
-        $select.$isVisible = function() {
-          if(!options.minLength || !controller) {
-            return scope.$matches.length;
-          }
-          // minLength support
-          return scope.$matches.length && controller.$viewValue.length >= options.minLength;
-        };
-
-        $select.$isActive = function(index) {
-          if(options.multiple) {
-            return scope.$activeIndex.indexOf(index) !== -1;
-          } else {
-            return scope.$activeIndex === index;
-          }
-        };
-
-        $select.$getIndex = function(value) {
-          var l = scope.$matches.length, i = l;
-          if(!l) return;
-          for(i = l; i--;) {
-            if(scope.$matches[i].value === value) break;
-          }
-          if(i < 0) return;
-          return i;
-        };
-
-        $select.$onMouseDown = function(evt) {
-          // Prevent blur on mousedown on .dropdown-menu
-          evt.preventDefault();
-          evt.stopPropagation();
-          // Emulate click for mobile devices
-          if(isTouch) {
-            var targetEl = angular.element(evt.target);
-            targetEl.triggerHandler('click');
-          }
-        };
-
-        $select.$onKeyDown = function(evt) {
-          var specialChars = [9, 13, 38, 40];
-          if (specialChars.indexOf(evt.keyCode) < 0) {
-            var filtered = $filter('startsWithLetter')(scope.$matches, 'label', String.fromCharCode(evt.keyCode));
-            if (filtered.length > 0) {
-                scope.$activeIndex = filtered[0].index;
-            }
-          } else {
-            evt.preventDefault();
-            evt.stopPropagation();
-
-            // Select with enter
-            if(!options.multiple && (evt.keyCode === 13 || evt.keyCode === 9)) {
-              return $select.select(scope.$activeIndex);
-            }
-
-            // Navigate with keyboard
-            if(evt.keyCode === 38 && scope.$activeIndex > 0) scope.$activeIndex--;
-            else if(evt.keyCode === 40 && scope.$activeIndex < scope.$matches.length - 1) scope.$activeIndex++;
-            else if(angular.isUndefined(scope.$activeIndex)) scope.$activeIndex = 0;
-          }
-
-          // scroll do element
-          var liActive = $select.$element.find('li.active');
-          $select.$element[0].scrollTop = scope.$activeIndex * liActive.height();
-          scope.$digest();
-        };
-
-        // Overrides
-
-        var _show = $select.show;
-        $select.show = function() {
-          _show();
-          if(options.multiple) {
-            $select.$element.addClass('select-multiple');
-          }
-          // use timeout to hookup the events to prevent
-          // event bubbling from being processed imediately.
-          $timeout(function() {
-            $select.$element.on(isTouch ? 'touchstart' : 'mousedown', $select.$onMouseDown);
-            if(options.keyboard) {
-              element.on('keydown', $select.$onKeyDown);
-            }
-          }, 0, false);
-        };
-
-        var _hide = $select.hide;
-        $select.hide = function() {
-          $select.$element.off(isTouch ? 'touchstart' : 'mousedown', $select.$onMouseDown);
-          if(options.keyboard) {
-            element.off('keydown', $select.$onKeyDown);
-          }
-          _hide(true);
-        };
-
-        return $select;
-
-      }
-
-      SelectFactory.defaults = defaults;
-      return SelectFactory;
-
-    }];
-
-  })
-
-  .directive('bsSelect', ["$window", "$parse", "$q", "$select", "$parseOptions", function($window, $parse, $q, $select, $parseOptions) {
-
-    var defaults = $select.defaults;
-
-    return {
-      restrict: 'EAC',
-      require: 'ngModel',
-      link: function postLink(scope, element, attr, controller) {
-
-        // Directive options
-        var options = {scope: scope, placeholder: defaults.placeholder};
-        angular.forEach(['placement', 'container', 'delay', 'trigger', 'keyboard', 'html', 'animation', 'template', 'placeholder', 'multiple', 'allNoneButtons', 'maxLength', 'maxLengthHtml', 'allText', 'noneText', 'iconCheckmark', 'autoClose', 'id', 'sort', 'caretHtml'], function(key) {
-          if(angular.isDefined(attr[key])) options[key] = attr[key];
-        });
-
-        // Add support for select markup
-        if(element[0].nodeName.toLowerCase() === 'select') {
-          var inputEl = element;
-          inputEl.css('display', 'none');
-          element = angular.element('<button type="button" class="btn btn-default"></button>');
-          inputEl.after(element);
-        }
-
-        // Build proper ngOptions
-        var parsedOptions = $parseOptions(attr.ngOptions);
-
-        // Initialize select
-        var select = $select(element, controller, options);
-
-        // Watch ngOptions values before filtering for changes
-        var watchedOptions = parsedOptions.$match[7].replace(/\|.+/, '').trim();
-        scope.$watch(watchedOptions, function(newValue, oldValue) {
-          // console.warn('scope.$watch(%s)', watchedOptions, newValue, oldValue);
-          parsedOptions.valuesFn(scope, controller)
-          .then(function(values) {
-            select.update(values);
-            controller.$render();
-          });
-        }, true);
-
-        // Watch model for changes
-        scope.$watch(attr.ngModel, function(newValue, oldValue) {
-          // console.warn('scope.$watch(%s)', attr.ngModel, newValue, oldValue);
-          select.$updateActiveIndex();
-          controller.$render();
-        }, true);
-
-        // Model rendering in view
-        controller.$render = function () {
-          // console.warn('$render', element.attr('ng-model'), 'controller.$modelValue', typeof controller.$modelValue, controller.$modelValue, 'controller.$viewValue', typeof controller.$viewValue, controller.$viewValue);
-          var selected, index;
-          if(options.multiple && angular.isArray(controller.$modelValue)) {
-            selected = controller.$modelValue.map(function(value) {
-              index = select.$getIndex(value);
-              return angular.isDefined(index) ? select.$scope.$matches[index].label : false;
-            }).filter(angular.isDefined);
-            if(selected.length > (options.maxLength || defaults.maxLength)) {
-              selected = selected.length + ' ' + (options.maxLengthHtml || defaults.maxLengthHtml);
-            } else {
-              selected = selected.join(', ');
-            }
-          } else {
-            index = select.$getIndex(controller.$modelValue);
-            selected = angular.isDefined(index) ? select.$scope.$matches[index].label : false;
-          }
-          element.html((selected ? selected : options.placeholder) + (options.caretHtml ? options.caretHtml : defaults.caretHtml));
-        };
-
-        if(options.multiple){
-          controller.$isEmpty = function(value){
-            return !value || value.length === 0;
-          };
-        }
-
-        // Garbage collection
-        scope.$on('$destroy', function() {
-          if (select) select.destroy();
-          options = null;
-          select = null;
-        });
-
-      }
     };
 
   }]);

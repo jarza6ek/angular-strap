@@ -1,6 +1,6 @@
 /**
  * angular-strap
- * @version v2.2.0 - 2015-03-31
+ * @version v2.2.0 - 2015-06-09
  * @link http://mgcrea.github.io/angular-strap
  * @author Olivier Louvignes (olivier@mg-crea.com)
  * @license MIT License, http://www.opensource.org/licenses/MIT
@@ -75,6 +75,10 @@ angular.module('mgcrea.ngStrap.select', ['mgcrea.ngStrap.tooltip', 'mgcrea.ngStr
         scope.$iconCheckmark = options.iconCheckmark;
         scope.$allText = options.allText;
         scope.$noneText = options.noneText;
+
+        // track by in ngOptions fix
+        scope.$trackBy = options.trackBy;
+
 
         scope.$activate = function(index) {
           scope.$$postDigest(function() {
@@ -181,9 +185,15 @@ angular.module('mgcrea.ngStrap.select', ['mgcrea.ngStrap.tooltip', 'mgcrea.ngStr
 
         $select.$getIndex = function(value) {
           var l = scope.$matches.length, i = l;
-          if(!l) return;
-          for(i = l; i--;) {
-            if(scope.$matches[i].value === value) break;
+          if(!l) return;var trackBy = scope.$trackBy;
+          if (trackBy) {
+            for(i = l; i--;) {
+              if(scope.$matches[i].value[trackBy] === value[trackBy]) break;
+            }
+          } else {
+            for(i = l; i--;) {
+              if(scope.$matches[i].value === value) break;
+            }
           }
           if(i < 0) return;
           return i;
@@ -291,6 +301,13 @@ angular.module('mgcrea.ngStrap.select', ['mgcrea.ngStrap.tooltip', 'mgcrea.ngStr
 
         // Build proper ngOptions
         var parsedOptions = $parseOptions(attr.ngOptions);
+
+        // Track by in ngOptions fix
+        var trackBy = parsedOptions.$match[8];
+        if (trackBy) {
+          trackBy = trackBy.replace(/^(.*)\./, '').trim();
+          options['trackBy'] = trackBy;
+        }
 
         // Initialize select
         var select = $select(element, controller, options);

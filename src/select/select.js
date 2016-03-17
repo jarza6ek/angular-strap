@@ -287,7 +287,12 @@ angular.module('mgcrea.ngStrap.select', ['mgcrea.ngStrap.tooltip', 'mgcrea.ngStr
         // Add support for select markup
         if(element[0].nodeName.toLowerCase() === 'select') {
           var inputEl = element;
-          inputEl.css('display', 'none');
+          // use standard select if on mobile
+          if(window.innerWidth > 480) {
+            inputEl.css('display', 'none');
+          } else {
+            inputEl.css('display', 'block !important');
+          }
           element = angular.element('<button type="button" class="btn btn-default"></button>');
           inputEl.after(element);
         }
